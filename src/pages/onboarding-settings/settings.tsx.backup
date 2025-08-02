@@ -1,0 +1,1096 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { User, MapPin, Bell, Camera, HelpCircle, Shield, Download, Loader2, Trash2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+
+export default function Settings() {
+  const { toast } = useToast();
+  const { user, logout } = useAuth();
+  const [notifications, setNotifications] = useState(true);
+  const [autoBackup, setAutoBackup] = useState(true);
+  const [gpsAccuracy, setGpsAccuracy] = useState("high");
+
+  const [showMorningWidget, setShowMorningWidget] = useState(() => 
+    localStorage.getItem('cadence-morning-check-dismissed') !== 'true'
+  );
+  
+  // Profile form states
+  const [farmName, setFarmName] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [farmSize, setFarmSize] = useState("");
+  
+  // Account deletion states
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+
+  // Subscription update mutation
+  const subscriptionUpdateMutation = useMutation({
+    mutationFn: async (subscriptionTier: string) => {
+      return await apiRequest("PUT", "/api/auth/subscription", { 
+        subscriptionTier,
+        farmTier: "basic", // Keep farm tier as basic for development
+        billingCycle: "monthly" 
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Subscription Updated",
+        description: "Your subscription tier has been updated for testing.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update subscription tier.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateSubscriptionTier = (tier: string) => {
+    subscriptionUpdateMutation.mutate(tier);
+  };
+
+  // Update form states when user data changes
+  useEffect(() => {
+    if (user) {
+      setFarmName((user as any)?.farmName || "");
+      setZipCode((user as any)?.zipCode || "");
+      setFarmSize((user as any)?.farmSizeAcres ? String((user as any).farmSizeAcres) : "");
+    }
+  }, [user]);
+
+  // Profile update mutation
+  const profileUpdateMutation = useMutation({
+    mutationFn: async (profileData: any) => {
+      return await apiRequest("PUT", "/api/auth/profile", profileData);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been saved successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] }); // Refresh user data to show updated information
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleUpdateProfile = () => {
+    const profileData: any = {};
+    if (farmName !== (user as any)?.farmName) profileData.farmName = farmName;
+    if (zipCode !== (user as any)?.zipCode) profileData.zipCode = zipCode;
+    if (farmSize !== (user as any)?.farmSizeAcres) profileData.farmSizeAcres = Number(farmSize) || undefined;
+    
+    if (Object.keys(profileData).length > 0) {
+      profileUpdateMutation.mutate(profileData);
+    } else {
+      toast({
+        title: "No Changes",
+        description: "No changes detected to save.",
+      });
+    }
+  };
+
+  // Account deletion mutation
+  const accountDeleteMutation = useMutation({
+    mutationFn: async (password: string) => {
+      return await apiRequest("DELETE", "/api/auth/account", { password });
+    },
+    onSuccess: () => {
+      // Clear all local data
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      toast({
+        title: "Account Deleted",
+        description: "Your account and all data have been permanently deleted.",
+      });
+      
+      // Logout and redirect
+      setTimeout(() => {
+        logout();
+        window.location.href = '/auth';
+      }, 1500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Deletion Failed",
+        description: error.message || "Failed to delete account. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteAccount = () => {
+    if (!deletePassword.trim()) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your password to confirm account deletion.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    accountDeleteMutation.mutate(deletePassword);
+  };
+
+
+
+  // Demo data sets
+  const demoData = {
+    herds: [
+      {
+        userId: 1,
+        name: "Main Cattle Herd",
+        species: "cattle",
+        breed: "Angus",
+        count: 25,
+        averageWeight: "1200",
+        age: "3",
+        ageUnit: "years",
+        sex: "mixed",
+        lactating: true,
+        lactatingCount: 15,
+        dmPercent: "2.5"
+      },
+      {
+        userId: 1,
+        name: "Young Bulls",
+        species: "cattle", 
+        breed: "Hereford",
+        count: 8,
+        averageWeight: "800",
+        age: "18",
+        ageUnit: "months",
+        sex: "male",
+        lactating: false,
+        lactatingCount: null,
+        dmPercent: "2.8"
+      },
+      {
+        userId: 1,
+        name: "Sheep Flock",
+        species: "sheep",
+        breed: "Dorper",
+        count: 40,
+        averageWeight: "150",
+        age: "2",
+        ageUnit: "years", 
+        sex: "mixed",
+        lactating: true,
+        lactatingCount: 25,
+        dmPercent: "3.2"
+      }
+    ],
+    paddocks: [
+      {
+        userId: 1,
+        name: "North Pasture",
+        acres: "12.50",
+        pastureType: "mixed",
+        currentlyGrazing: true,
+        restDays: 35,
+        shadeAvailability: "moderate",
+        shadeType: "natural",
+        waterSources: 2,
+        gpsCoordinates: null,
+        lastGrazed: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: 1,
+        name: "South Field",
+        acres: "8.30",
+        pastureType: "lush",
+        currentlyGrazing: false,
+        restDays: 28,
+        shadeAvailability: "excellent",
+        shadeType: "artificial",
+        waterSources: 1,
+        gpsCoordinates: null,
+        lastGrazed: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: 1,
+        name: "East Bottom",
+        acres: "6.70",
+        pastureType: "native",
+        currentlyGrazing: false,
+        restDays: 42,
+        shadeAvailability: "minimal",
+        shadeType: "natural",
+        waterSources: 1,
+        gpsCoordinates: null,
+        lastGrazed: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: 1,
+        name: "West Ridge",
+        acres: "15.20",
+        pastureType: "mixed",
+        currentlyGrazing: false,
+        restDays: 35,
+        shadeAvailability: "moderate",
+        shadeType: "natural",
+        waterSources: 3,
+        gpsCoordinates: null,
+        lastGrazed: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+      }
+    ],
+    assessments: [
+      {
+        userId: 1,
+        paddockId: 1, // Will be updated with actual paddock ID
+        totalPoints: 15,
+        completedPoints: 15,
+        transectLength: "100.00",
+        transectBearing: "45.00",
+        status: "completed",
+        weatherConditions: "Clear, 72°F"
+      }
+    ],
+    animals: [
+      // Main Cattle Herd (25 Angus cattle - 15 lactating, 10 non-lactating)
+      { userId: 1, herdId: 1, tagNumber: "001", name: "Bessie", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2021, 3, 15).toISOString(), weight: "1250", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Excellent condition, good milk production" },
+      { userId: 1, herdId: 1, tagNumber: "002", name: "Thunder", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2020, 8, 22).toISOString(), weight: "1800", bodyConditionScore: "8", lactating: false, pregnancyStatus: null, healthNotes: "Prime breeding bull, aggressive but manageable" },
+      { userId: 1, herdId: 1, tagNumber: "003", name: "Daisy", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2020, 1, 10).toISOString(), weight: "1180", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Good condition, regular milker" },
+      { userId: 1, herdId: 1, tagNumber: "004", name: "Duke", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2019, 5, 5).toISOString(), weight: "1650", bodyConditionScore: "7", lactating: false, pregnancyStatus: null, healthNotes: "Excellent breeder, calm temperament" },
+      { userId: 1, herdId: 1, tagNumber: "005", name: "Ruby", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2021, 7, 12).toISOString(), weight: "1100", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "First-time mother, monitoring closely" },
+      { userId: 1, herdId: 1, tagNumber: "006", name: "Buster", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2022, 2, 28).toISOString(), weight: "950", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Young bull, growing well" },
+      { userId: 1, herdId: 1, tagNumber: "007", name: "Molly", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2020, 6, 20).toISOString(), weight: "1220", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Consistent producer, good mother" },
+      { userId: 1, herdId: 1, tagNumber: "008", name: "Rex", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2021, 0, 8).toISOString(), weight: "1400", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Growing steers, market ready soon" },
+      { userId: 1, herdId: 1, tagNumber: "009", name: "Belle", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2019, 11, 15).toISOString(), weight: "1280", bodyConditionScore: "8", lactating: true, pregnancyStatus: "bred", healthNotes: "Veteran cow, excellent genetics" },
+      { userId: 1, herdId: 1, tagNumber: "010", name: "Rocky", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2020, 4, 3).toISOString(), weight: "1550", bodyConditionScore: "7", lactating: false, pregnancyStatus: null, healthNotes: "Strong frame, good weight gain" },
+      { userId: 1, herdId: 1, tagNumber: "011", name: "Luna", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2021, 9, 18).toISOString(), weight: "1150", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Good condition, regular health checks" },
+      { userId: 1, herdId: 1, tagNumber: "012", name: "Max", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2022, 1, 14).toISOString(), weight: "850", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Youngest in herd, thriving" },
+      { userId: 1, herdId: 1, tagNumber: "013", name: "Rosie", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2020, 3, 25).toISOString(), weight: "1190", bodyConditionScore: "7", lactating: true, pregnancyStatus: "bred", healthNotes: "Excellent mother, twins last year" },
+      { userId: 1, herdId: 1, tagNumber: "014", name: "Ranger", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2021, 6, 7).toISOString(), weight: "1300", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Active grazer, good forager" },
+      { userId: 1, herdId: 1, tagNumber: "015", name: "Penny", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2019, 8, 30).toISOString(), weight: "1260", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Reliable producer, easy handling" },
+      { userId: 1, herdId: 1, tagNumber: "016", name: "Scout", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2021, 11, 11).toISOString(), weight: "1050", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Fast growth, good appetite" },
+      { userId: 1, herdId: 1, tagNumber: "017", name: "Grace", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2020, 7, 16).toISOString(), weight: "1200", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Gentle nature, good with handlers" },
+      { userId: 1, herdId: 1, tagNumber: "018", name: "Brock", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2020, 10, 2).toISOString(), weight: "1480", bodyConditionScore: "7", lactating: false, pregnancyStatus: null, healthNotes: "Strong build, potential breeder" },
+      { userId: 1, herdId: 1, tagNumber: "019", name: "Stella", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2021, 5, 22).toISOString(), weight: "1170", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Average producer, healthy" },
+      { userId: 1, herdId: 1, tagNumber: "020", name: "Jake", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2021, 8, 9).toISOString(), weight: "1250", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Steady grower, calm demeanor" },
+      { userId: 1, herdId: 1, tagNumber: "021", name: "Fern", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2019, 2, 17).toISOString(), weight: "1290", bodyConditionScore: "8", lactating: true, pregnancyStatus: "bred", healthNotes: "Matriarch of herd, excellent genetics" },
+      { userId: 1, herdId: 1, tagNumber: "022", name: "Cash", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2022, 0, 5).toISOString(), weight: "780", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Youngest bull, promising growth" },
+      { userId: 1, herdId: 1, tagNumber: "023", name: "Iris", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2020, 9, 13).toISOString(), weight: "1210", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Good milk production, easy calving" },
+      { userId: 1, herdId: 1, tagNumber: "024", name: "Blaze", species: "cattle", breed: "Angus", sex: "male", birthDate: new Date(2021, 4, 1).toISOString(), weight: "1350", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Energetic, good grazer" },
+      { userId: 1, herdId: 1, tagNumber: "025", name: "Willow", species: "cattle", breed: "Angus", sex: "female", birthDate: new Date(2021, 2, 26).toISOString(), weight: "1140", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "First breeding season, monitoring" },
+
+      // Young Bulls (8 Hereford bulls - 18 months old)
+      { userId: 1, herdId: 2, tagNumber: "B01", name: "Titan", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 6, 15).toISOString(), weight: "850", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Young bull, excellent potential" },
+      { userId: 1, herdId: 2, tagNumber: "B02", name: "Atlas", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 6, 20).toISOString(), weight: "820", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Strong frame, good growth rate" },
+      { userId: 1, herdId: 2, tagNumber: "B03", name: "Zeus", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 7, 2).toISOString(), weight: "780", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Aggressive feeder, rapid growth" },
+      { userId: 1, herdId: 2, tagNumber: "B04", name: "Thor", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 7, 10).toISOString(), weight: "800", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Muscular build, future breeder" },
+      { userId: 1, herdId: 2, tagNumber: "B05", name: "Diesel", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 5, 28).toISOString(), weight: "860", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Largest of the group, dominant" },
+      { userId: 1, herdId: 2, tagNumber: "B06", name: "Storm", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 8, 5).toISOString(), weight: "750", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Younger but catching up quickly" },
+      { userId: 1, herdId: 2, tagNumber: "B07", name: "Rebel", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 6, 1).toISOString(), weight: "830", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Independent, strong grazer" },
+      { userId: 1, herdId: 2, tagNumber: "B08", name: "Ranger", species: "cattle", breed: "Hereford", sex: "male", birthDate: new Date(2022, 7, 18).toISOString(), weight: "790", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Good conformation, steady growth" },
+
+      // Sheep Flock (40 Dorper sheep - 25 lactating, 15 non-lactating)
+      { userId: 1, herdId: 3, tagNumber: "S001", name: "Dot", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 2, 10).toISOString(), weight: "160", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Lead ewe, excellent mother" },
+      { userId: 1, herdId: 3, tagNumber: "S002", name: "Pepper", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 3, 15).toISOString(), weight: "155", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Good milk production" },
+      { userId: 1, herdId: 3, tagNumber: "S003", name: "Sage", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 11, 20).toISOString(), weight: "170", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Veteran ewe, reliable" },
+      { userId: 1, herdId: 3, tagNumber: "S004", name: "Clover", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 1, 5).toISOString(), weight: "150", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "First-time mother" },
+      { userId: 1, herdId: 3, tagNumber: "S005", name: "Mint", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 8, 12).toISOString(), weight: "165", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Twins last season" },
+      { userId: 1, herdId: 3, tagNumber: "S006", name: "Basil", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2019, 4, 8).toISOString(), weight: "200", bodyConditionScore: "8", lactating: false, pregnancyStatus: null, healthNotes: "Prime ram, excellent genetics" },
+      { userId: 1, herdId: 3, tagNumber: "S007", name: "Rosemary", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 5, 22).toISOString(), weight: "145", bodyConditionScore: "5", lactating: true, pregnancyStatus: "open", healthNotes: "Young ewe, first lambing" },
+      { userId: 1, herdId: 3, tagNumber: "S008", name: "Thyme", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 10, 3).toISOString(), weight: "158", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Good condition, easy keeper" },
+      { userId: 1, herdId: 3, tagNumber: "S009", name: "Parsley", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 7, 14).toISOString(), weight: "140", bodyConditionScore: "5", lactating: true, pregnancyStatus: "open", healthNotes: "Smaller frame, healthy" },
+      { userId: 1, herdId: 3, tagNumber: "S010", name: "Oregano", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2021, 0, 18).toISOString(), weight: "175", bodyConditionScore: "6", lactating: false, pregnancyStatus: null, healthNotes: "Young ram, developing well" },
+      { userId: 1, herdId: 3, tagNumber: "S011", name: "Dill", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 6, 25).toISOString(), weight: "162", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Consistent producer" },
+      { userId: 1, herdId: 3, tagNumber: "S012", name: "Fennel", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 4, 9).toISOString(), weight: "148", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Second season breeding" },
+      { userId: 1, herdId: 3, tagNumber: "S013", name: "Cinnamon", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 9, 16).toISOString(), weight: "167", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Large frame, good milker" },
+      { userId: 1, herdId: 3, tagNumber: "S014", name: "Nutmeg", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 8, 7).toISOString(), weight: "152", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Average size, good health" },
+      { userId: 1, herdId: 3, tagNumber: "S015", name: "Ginger", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 12, 1).toISOString(), weight: "159", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Energetic, good forager" },
+      { userId: 1, herdId: 3, tagNumber: "S016", name: "Paprika", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 6, 11).toISOString(), weight: "143", bodyConditionScore: "5", lactating: true, pregnancyStatus: "bred", healthNotes: "Young mother, monitoring" },
+      { userId: 1, herdId: 3, tagNumber: "S017", name: "Curry", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2020, 3, 29).toISOString(), weight: "185", bodyConditionScore: "7", lactating: false, pregnancyStatus: null, healthNotes: "Backup ram, good genetics" },
+      { userId: 1, herdId: 3, tagNumber: "S018", name: "Vanilla", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 9, 23).toISOString(), weight: "138", bodyConditionScore: "5", lactating: true, pregnancyStatus: "open", healthNotes: "Youngest breeding ewe" },
+      { userId: 1, herdId: 3, tagNumber: "S019", name: "Saffron", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 7, 4).toISOString(), weight: "164", bodyConditionScore: "7", lactating: true, pregnancyStatus: "bred", healthNotes: "Premium fleece quality" },
+      { userId: 1, herdId: 3, tagNumber: "S020", name: "Cardamom", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 2, 19).toISOString(), weight: "149", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Active grazer, good health" },
+      { userId: 1, herdId: 3, tagNumber: "S021", name: "Anise", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 5, 13).toISOString(), weight: "161", bodyConditionScore: "6", lactating: true, pregnancyStatus: "bred", healthNotes: "Steady producer" },
+      { userId: 1, herdId: 3, tagNumber: "S022", name: "Cumin", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2021, 11, 6).toISOString(), weight: "155", bodyConditionScore: "5", lactating: false, pregnancyStatus: null, healthNotes: "Young male, castrated" },
+      { userId: 1, herdId: 3, tagNumber: "S023", name: "Bay", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 1, 27).toISOString(), weight: "168", bodyConditionScore: "7", lactating: true, pregnancyStatus: "open", healthNotes: "Older ewe, experienced mother" },
+      { userId: 1, herdId: 3, tagNumber: "S024", name: "Mustard", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2021, 10, 15).toISOString(), weight: "144", bodyConditionScore: "5", lactating: true, pregnancyStatus: "bred", healthNotes: "First pregnancy, watching closely" },
+      { userId: 1, herdId: 3, tagNumber: "S025", name: "Chili", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2020, 4, 21).toISOString(), weight: "156", bodyConditionScore: "6", lactating: true, pregnancyStatus: "open", healthNotes: "Spunky personality, good health" },
+      { userId: 1, herdId: 3, tagNumber: "S026", name: "Garlic", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 1, 8).toISOString(), weight: "120", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Ram lamb, growing rapidly" },
+      { userId: 1, herdId: 3, tagNumber: "S027", name: "Onion", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 2, 14).toISOString(), weight: "115", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Young male, good potential" },
+      { userId: 1, herdId: 3, tagNumber: "S028", name: "Leek", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 0, 22).toISOString(), weight: "125", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Largest of the young rams" },
+      { userId: 1, herdId: 3, tagNumber: "S029", name: "Chive", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 3, 10).toISOString(), weight: "95", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Ewe lamb, weaned recently" },
+      { userId: 1, herdId: 3, tagNumber: "S030", name: "Shallot", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 2, 5).toISOString(), weight: "100", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Young ewe, developing well" },
+      { userId: 1, herdId: 3, tagNumber: "S031", name: "Scallion", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 1, 18).toISOString(), weight: "110", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Active young ram" },
+      { userId: 1, herdId: 3, tagNumber: "S032", name: "Radish", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 4, 2).toISOString(), weight: "88", bodyConditionScore: "3", lactating: false, pregnancyStatus: null, healthNotes: "Smallest lamb, catching up" },
+      { userId: 1, herdId: 3, tagNumber: "S033", name: "Turnip", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 3, 25).toISOString(), weight: "92", bodyConditionScore: "3", lactating: false, pregnancyStatus: null, healthNotes: "Young ram lamb, healthy" },
+      { userId: 1, herdId: 3, tagNumber: "S034", name: "Beet", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 2, 12).toISOString(), weight: "98", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Ewe lamb, good growth" },
+      { userId: 1, herdId: 3, tagNumber: "S035", name: "Carrot", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 1, 30).toISOString(), weight: "108", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Energetic young male" },
+      { userId: 1, herdId: 3, tagNumber: "S036", name: "Potato", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 4, 15).toISOString(), weight: "85", bodyConditionScore: "3", lactating: false, pregnancyStatus: null, healthNotes: "Youngest ewe lamb" },
+      { userId: 1, herdId: 3, tagNumber: "S037", name: "Celery", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 3, 8).toISOString(), weight: "94", bodyConditionScore: "3", lactating: false, pregnancyStatus: null, healthNotes: "Ram lamb, good appetite" },
+      { userId: 1, herdId: 3, tagNumber: "S038", name: "Lettuce", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 2, 20).toISOString(), weight: "96", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Ewe lamb, gentle nature" },
+      { userId: 1, herdId: 3, tagNumber: "S039", name: "Spinach", species: "sheep", breed: "Dorper", sex: "female", birthDate: new Date(2022, 1, 14).toISOString(), weight: "102", bodyConditionScore: "4", lactating: false, pregnancyStatus: null, healthNotes: "Strong young ewe" },
+      { userId: 1, herdId: 3, tagNumber: "S040", name: "Kale", species: "sheep", breed: "Dorper", sex: "male", birthDate: new Date(2022, 4, 1).toISOString(), weight: "90", bodyConditionScore: "3", lactating: false, pregnancyStatus: null, healthNotes: "Youngest ram lamb, thriving" }
+    ]
+  };
+
+  // Load demo data function
+  const loadDemoData = async () => {
+    setIsLoadingDemo(true);
+    try {
+      // Clear existing data first
+      await clearAllData();
+      
+      // Create herds first
+      const createdHerds = [];
+      for (const herd of demoData.herds) {
+        const response = await apiRequest("POST", "/api/herds", herd);
+        const createdHerd = await response.json();
+        createdHerds.push(createdHerd);
+      }
+
+      // Create paddocks
+      const createdPaddocks = [];
+      for (const paddock of demoData.paddocks) {
+        // Convert lastGrazed back to Date if it exists
+        const paddockData = {
+          ...paddock,
+          lastGrazed: paddock.lastGrazed ? new Date(paddock.lastGrazed) : null
+        };
+        const response = await apiRequest("POST", "/api/paddocks", paddockData);
+        const createdPaddock = await response.json();
+        createdPaddocks.push(createdPaddock);
+      }
+
+      // Create animals with updated herd IDs
+      for (const animal of demoData.animals) {
+        const animalData = { ...animal, herdId: createdHerds[0].id };
+        await apiRequest("POST", "/api/animals", animalData);
+      }
+
+      // Create sample assessments with updated IDs
+      for (const assessment of demoData.assessments) {
+        const assessmentData = { 
+          ...assessment, 
+          paddockId: createdPaddocks[0].id
+        };
+        await apiRequest("POST", "/api/assessments", assessmentData);
+      }
+
+      // Set demo mode in localStorage
+      localStorage.setItem('cadence-demo-mode', 'true');
+      setDemoMode(true);
+
+      // Refresh all data
+      queryClient.invalidateQueries();
+
+      toast({
+        title: "Demo Mode Activated",
+        description: "Sample farm data loaded successfully! Explore all features with realistic data.",
+      });
+
+    } catch (error) {
+      console.error('Error loading demo data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load demo data. Please try again.",
+        variant: "destructive",
+      });
+    }
+    setIsLoadingDemo(false);
+  };
+
+  // Clear demo data function
+  const clearDemoData = async () => {
+    try {
+      await clearAllData();
+      localStorage.setItem('cadence-demo-mode', 'false');
+      setDemoMode(false);
+      queryClient.invalidateQueries();
+
+      toast({
+        title: "Demo Mode Disabled",
+        description: "All demo data cleared. You can now add your own farm data.",
+      });
+    } catch (error) {
+      console.error('Error clearing demo data:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to clear demo data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Clear all user data
+  const clearAllData = async () => {
+    const responses = await Promise.allSettled([
+      fetch('/api/herds?userId=1', { method: 'DELETE' }),
+      fetch('/api/paddocks?userId=1', { method: 'DELETE' }),
+      fetch('/api/animals?userId=1', { method: 'DELETE' }),
+      fetch('/api/assessments?userId=1', { method: 'DELETE' })
+    ]);
+    
+    responses.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.warn(`Failed to clear data for endpoint ${index}:`, result.reason);
+      }
+    });
+  };
+
+  // Toggle demo mode
+  const toggleDemoMode = async (enabled: boolean) => {
+    // Update localStorage first
+    localStorage.setItem('cadence-demo-mode', enabled.toString());
+    setDemoMode(enabled);
+    
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('demo-mode-changed'));
+    
+    if (enabled) {
+      await loadDemoData();
+    } else {
+      await clearDemoData();
+    }
+  };
+
+  return (
+    <div className="min-h-full p-3 sm:p-6 space-y-4 sm:space-y-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-text-primary mb-2">Settings</h1>
+        <p className="text-sm sm:text-base text-gray-600">Configure your grazing assessment preferences</p>
+      </div>
+
+      {/* Demo Mode Section */}
+      <Card className="border-2 border-orange-200 bg-orange-50/50">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <TestTube className="h-5 w-5 text-orange-600 mr-2" />
+            Demo Mode
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <p className="text-sm text-gray-700">
+                Demo mode loads realistic sample data including livestock herds, paddocks, assessments, and individual animals. 
+                Perfect for exploring features before adding your own farm data.
+              </p>
+              <div className="text-xs text-orange-700 bg-orange-100 rounded p-2">
+                <strong>What's included:</strong>
+                <ul className="mt-1 space-y-1 list-disc list-inside">
+                  <li>3 livestock herds (cattle, sheep) with 73 total animals</li>
+                  <li>4 paddocks with varied pasture types and conditions</li>
+                  <li>Sample assessment data and grazing history</li>
+                  <li>Individual animal records with health data</li>
+                  <li>Helpful tips and guidance throughout the app</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              <Label htmlFor="demo-mode" className="font-medium">
+                {demoMode ? "Demo Mode Active" : "Enable Demo Mode"}
+              </Label>
+              <p className="text-xs text-gray-500 mt-1">
+                {demoMode 
+                  ? "Disable to clear demo data and add your own farm information"
+                  : "Load sample data to explore all app features"
+                }
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isLoadingDemo && (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-600 border-t-transparent"></div>
+              )}
+              <Switch 
+                id="demo-mode"
+                checked={demoMode} 
+                onCheckedChange={toggleDemoMode}
+                disabled={isLoadingDemo}
+              />
+            </div>
+          </div>
+
+          {demoMode && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-800">Demo mode is active</span>
+              </div>
+              <p className="text-xs text-green-700 mt-1">
+                Look for helpful tips and guidance throughout the app. All demo data can be safely modified or deleted.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Development Subscription Controls */}
+      <Card className="border-2 border-blue-200 bg-blue-50/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-blue-600" />
+            Development: Subscription Testing
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <p className="text-sm text-gray-700">
+                Test different subscription tiers to verify tool access and upgrade functionality.
+              </p>
+              <div className="text-xs text-blue-700 bg-blue-100 rounded p-2">
+                <strong>Current Plan:</strong> {user?.subscriptionTier || 'free'} 
+                <br />
+                <strong>Available Plans:</strong> free (5 tools) → small_farm (12 tools) → professional (18 tools) → enterprise (24 tools)
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Button 
+              size="sm" 
+              variant={user?.subscriptionTier === 'free' ? 'default' : 'outline'}
+              onClick={() => updateSubscriptionTier('free')}
+              disabled={subscriptionUpdateMutation.isPending}
+            >
+              Free
+            </Button>
+            <Button 
+              size="sm" 
+              variant={user?.subscriptionTier === 'small_farm' ? 'default' : 'outline'}
+              onClick={() => updateSubscriptionTier('small_farm')}
+              disabled={subscriptionUpdateMutation.isPending}
+            >
+              Small Farm
+            </Button>
+            <Button 
+              size="sm" 
+              variant={user?.subscriptionTier === 'professional' ? 'default' : 'outline'}
+              onClick={() => updateSubscriptionTier('professional')}
+              disabled={subscriptionUpdateMutation.isPending}
+            >
+              Professional
+            </Button>
+            <Button 
+              size="sm" 
+              variant={user?.subscriptionTier === 'enterprise' ? 'default' : 'outline'}
+              onClick={() => updateSubscriptionTier('enterprise')}
+              disabled={subscriptionUpdateMutation.isPending}
+            >
+              Enterprise
+            </Button>
+          </div>
+          
+          {subscriptionUpdateMutation.isPending && (
+            <div className="flex items-center gap-2 text-sm text-blue-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Updating subscription tier...
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Morning Farm Check Widget */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Workflow Widget
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">
+                Show a floating widget with daily farm check tasks at the bottom-right of every page.
+              </p>
+              <div className="text-xs text-gray-500 bg-gray-50 rounded p-2">
+                <strong>The widget includes:</strong>
+                <ul className="mt-1 space-y-1 list-disc list-inside">
+                  <li>Quick access to weather conditions</li>
+                  <li>Livestock health inspection reminders</li>
+                  <li>Water system verification checks</li>
+                  <li>Daily rotation planning tasks</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              <Label htmlFor="morning-widget" className="font-medium">
+                Morning Farm Check Widget
+              </Label>
+              <p className="text-xs text-gray-500 mt-1">
+                {showMorningWidget 
+                  ? "Widget is visible on all pages"
+                  : "Widget is hidden (click to show)"
+                }
+              </p>
+            </div>
+            <Switch 
+              id="morning-widget"
+              checked={showMorningWidget} 
+              onCheckedChange={(checked) => {
+                setShowMorningWidget(checked);
+                if (checked) {
+                  localStorage.removeItem('cadence-morning-check-dismissed');
+                } else {
+                  localStorage.setItem('cadence-morning-check-dismissed', 'true');
+                }
+                // Force a page refresh to show/hide the widget
+                window.location.reload();
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Profile Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <User className="h-5 w-5 text-primary mr-2" />
+            Profile
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" defaultValue={user?.username || ""} readOnly />
+            </div>
+            <div>
+              <Label htmlFor="farmName">Farm Name</Label>
+              <Input 
+                id="farmName" 
+                value={farmName}
+                onChange={(e) => setFarmName(e.target.value)}
+                placeholder="Enter farm name"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="zip">ZIP Code</Label>
+              <Input 
+                id="zip" 
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value)}
+                placeholder="67501" 
+                className="w-32"
+                maxLength={5}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Used for climate-based calculations
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="farmSize">Farm Size (acres)</Label>
+              <Input 
+                id="farmSize" 
+                value={farmSize}
+                onChange={(e) => setFarmSize(e.target.value)}
+                placeholder="50"
+                type="number"
+              />
+            </div>
+          </div>
+          
+          {(user as any)?.gpsCoordinates && (
+            <div>
+              <Label>GPS Coordinates</Label>
+              <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                Lat: {(user as any).gpsCoordinates.lat?.toFixed(6)}, 
+                Lng: {(user as any).gpsCoordinates.lng?.toFixed(6)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Saved GPS location for your farm
+              </p>
+            </div>
+          )}
+          
+          <Button 
+            onClick={handleUpdateProfile}
+            disabled={profileUpdateMutation.isPending}
+            className="bg-primary hover:bg-primary-dark"
+          >
+            {profileUpdateMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Update Profile"
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Location Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <MapPin className="h-5 w-5 text-primary mr-2" />
+            Location & Mapping
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="gps-accuracy">GPS Accuracy</Label>
+            <Select value={gpsAccuracy} onValueChange={setGpsAccuracy}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high">High (±3 feet)</SelectItem>
+                <SelectItem value="medium">Medium (±10 feet)</SelectItem>
+                <SelectItem value="low">Low (±30 feet)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              Higher accuracy uses more battery
+            </p>
+          </div>
+          
+          <div>
+            <Label htmlFor="default-region">Default Climate Region</Label>
+            <Select defaultValue="temperate">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="temperate">Temperate</SelectItem>
+                <SelectItem value="arid">Arid</SelectItem>
+                <SelectItem value="humid">Humid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Assessment Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Camera className="h-5 w-5 text-primary mr-2" />
+            Assessment Preferences
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="default-points">Default Step Points</Label>
+            <Select defaultValue="15">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 points</SelectItem>
+                <SelectItem value="15">15 points</SelectItem>
+                <SelectItem value="20">20 points</SelectItem>
+                <SelectItem value="25">25 points</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="auto-backup">Auto-save Photos</Label>
+              <p className="text-xs text-gray-500">
+                Automatically save photos to device storage
+              </p>
+            </div>
+            <Switch 
+              id="auto-backup"
+              checked={autoBackup} 
+              onCheckedChange={setAutoBackup} 
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="tutorials">Show Tutorial Tips</Label>
+              <p className="text-xs text-gray-500">
+                Display helpful hints during assessments
+              </p>
+            </div>
+            <Switch id="tutorials" defaultChecked />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Bell className="h-5 w-5 text-primary mr-2" />
+            Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="notifications">Push Notifications</Label>
+              <p className="text-xs text-gray-500">
+                Receive alerts about assessment reminders
+              </p>
+            </div>
+            <Switch 
+              id="notifications"
+              checked={notifications} 
+              onCheckedChange={setNotifications} 
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="weather-alerts">Weather Alerts</Label>
+              <p className="text-xs text-gray-500">
+                Get notified about weather impacts
+              </p>
+            </div>
+            <Switch id="weather-alerts" defaultChecked />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="grazing-reminders">Grazing Reminders</Label>
+              <p className="text-xs text-gray-500">
+                Reminders to move livestock
+              </p>
+            </div>
+            <Switch id="grazing-reminders" defaultChecked />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data & Privacy */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Shield className="h-5 w-5 text-primary mr-2" />
+            Data & Privacy
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button variant="outline" className="w-full justify-start">
+            <Download className="h-4 w-4 mr-2" />
+            Export Assessment Data
+          </Button>
+          
+          <Button variant="outline" className="w-full justify-start">
+            <Shield className="h-4 w-4 mr-2" />
+            Privacy Policy
+          </Button>
+          
+          <Button variant="outline" className="w-full justify-start" onClick={() => {
+            if (confirm('This will delete all your farm data but keep your account. Are you sure?')) {
+              clearAllData().then(() => {
+                toast({
+                  title: "Data Cleared",
+                  description: "All farm data has been deleted successfully.",
+                });
+              }).catch((error) => {
+                toast({
+                  title: "Error",
+                  description: "Failed to clear data. Please try again.",
+                  variant: "destructive",
+                });
+              });
+            }
+          }}>
+            <Download className="h-4 w-4 mr-2" />
+            Clear Farm Data
+          </Button>
+
+          <Separator className="my-4" />
+          
+          <div className="border rounded-lg p-4 border-red-200 bg-red-50">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-red-800 mb-1">Danger Zone</h4>
+                <p className="text-sm text-red-700 mb-3">
+                  Permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+                
+                <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Account
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-red-600">Delete Account</DialogTitle>
+                      <DialogDescription>
+                        This will permanently delete your account, farm data, and all associated information. 
+                        This action cannot be undone.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-sm text-red-800 font-medium mb-2">What will be deleted:</p>
+                        <ul className="text-sm text-red-700 space-y-1">
+                          <li>• Your user account and login credentials</li>
+                          <li>• All farm data (herds, paddocks, assessments)</li>
+                          <li>• Tool preferences and settings</li>
+                          <li>• Performance metrics and history</li>
+                          <li>• All photos and documents</li>
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="delete-password" className="text-sm font-medium">
+                          Enter your password to confirm
+                        </Label>
+                        <Input
+                          id="delete-password"
+                          type="password"
+                          value={deletePassword}
+                          onChange={(e) => setDeletePassword(e.target.value)}
+                          placeholder="Your current password"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowDeleteDialog(false);
+                          setDeletePassword("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        variant="destructive"
+                        onClick={handleDeleteAccount}
+                        disabled={accountDeleteMutation.isPending || !deletePassword.trim()}
+                      >
+                        {accountDeleteMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete Account Permanently"
+                        )}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Help & Support */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <HelpCircle className="h-5 w-5 text-primary mr-2" />
+            Help & Support
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button variant="outline" className="w-full justify-start">
+            <HelpCircle className="h-4 w-4 mr-2" />
+            User Guide
+          </Button>
+          
+          <div className="bg-surface rounded-lg p-3">
+            <div className="text-sm font-medium text-primary mb-1">App Version</div>
+            <div className="text-sm text-gray-600">Cadence v1.0.0</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Development/Testing */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Shield className="h-5 w-5 text-primary mr-2" />
+            Development Options
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Reset Onboarding</Label>
+              <p className="text-xs text-gray-500">
+                Clear setup data and restart the onboarding process
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                if (confirm('This will delete all your farm data and restart the setup process. Are you sure?')) {
+                  // Clear all onboarding-related localStorage items
+                  localStorage.removeItem('onboarding_completed');
+                  localStorage.removeItem('cadence-intentOnboarding');
+                  localStorage.removeItem('cadence-userTools');
+                  localStorage.removeItem('cadence-assistantSeen');
+                  localStorage.removeItem('userPreferences');
+                  
+                  // Clear demo data if present
+                  localStorage.removeItem('demoHerds');
+                  localStorage.removeItem('demoPaddocks');
+                  localStorage.removeItem('demoAnimals');
+                  localStorage.removeItem('demoAssessments');
+                  
+                  // Clear session storage as well
+                  sessionStorage.removeItem('cadence-intentOnboarding');
+                  
+                  // Clear database data by making DELETE requests
+                  fetch('/api/herds?userId=1', { method: 'DELETE' });
+                  fetch('/api/paddocks?userId=1', { method: 'DELETE' });
+                  fetch('/api/animals?userId=1', { method: 'DELETE' });
+                  fetch('/api/assessments?userId=1', { method: 'DELETE' });
+                  
+                  toast({
+                    title: "Onboarding Reset",
+                    description: "All setup data cleared. Redirecting to onboarding...",
+                  });
+                  
+                  // Short delay to allow the toast to show before redirecting
+                  setTimeout(() => {
+                    window.location.href = '/onboarding';
+                  }, 1000);
+                }
+              }}
+            >
+              Reset Setup
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
