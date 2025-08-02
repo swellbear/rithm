@@ -1,12 +1,14 @@
 # Production Dockerfile - Ubuntu base for better native package support
 FROM node:20-bullseye-slim
 
-# Install system dependencies for native packages like canvas
+# Install system dependencies for native packages like canvas and node-llama-cpp
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     build-essential \
     python3-dev \
+    git \
+    cmake \
     libcairo2-dev \
     libpango1.0-dev \
     libjpeg-dev \
