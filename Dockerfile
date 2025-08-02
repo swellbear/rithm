@@ -14,8 +14,8 @@ WORKDIR /app
 # Copy package files first (for better Docker layer caching)
 COPY package*.json ./
 
-# Install dependencies with more permissive settings
-RUN npm install --production --ignore-scripts --no-audit --no-fund
+# Install dependencies with legacy peer deps to resolve conflicts
+RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 
 # Copy source code
 COPY . .
