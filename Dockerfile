@@ -1,7 +1,7 @@
-# Production Dockerfile - Ubuntu base for better native package support
-FROM node:20-bullseye-slim
+# Production Dockerfile - Debian 12 (bookworm) with CMake 3.25.1
+FROM node:20-bookworm-slim
 
-# Install system dependencies for native packages like canvas and node-llama-cpp
+# Install system dependencies - Debian 12 includes CMake 3.25.1
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     libgif-dev \
     librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Update npm to latest version
+RUN npm install -g npm@latest
 
 # Set working directory
 WORKDIR /app
