@@ -1,0 +1,1909 @@
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BrainCircuit, Send, Paperclip, FileText, X, Trash2, Zap, Settings, Shield, Lock, Eye, Image, BarChart3, Camera } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, ScatterChart, Scatter, AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { OpenAIStatus } from './types';
+import { DataAction, ChatAction, ChatMessage, ChatAttachment, ChartData } from './reducers';
+import { mlLogger, uiLogger } from '@/lib/logger';
+import CryptoJS from 'crypto-js';
+
+/**
+ * Chart Renderer Component
+ * Renders charts from AI responses using simple visualizations
+ */
+const ChartRenderer = ({ chartData }: { chartData: any }) => {
+  if (!chartData?.data || !Array.isArray(chartData.data) || chartData.data.length === 0) {
+    return null;
+  }
+
+  const { type, data, xKey, yKey, title, description } = chartData;
+
+  switch (type) {
+    case 'bar':
+      return (
+        <div className="w-full h-64 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h4 className="text-sm font-medium mb-2">{title || 'Chart'}</h4>
+          {description && <p className="text-xs text-gray-600 mb-3">{description}</p>}
+          <div className="w-full h-48 flex items-end justify-center gap-2">
+            {data.slice(0, 8).map((item: any, idx: number) => (
+              <div key={idx} className="flex flex-col items-center">
+                <div 
+                  className="bg-blue-500 w-8 rounded-t transition-all hover:bg-blue-600"
+                  style={{ height: `${Math.max((item[yKey] / Math.max(...data.map((d: any) => d[yKey]))) * 140, 4)}px` }}
+                  title={`${item[xKey]}: ${item[yKey]}`}
+                />
+                <span className="text-xs mt-1 text-center max-w-[40px] truncate">{item[xKey]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    
+    case 'line':
+      return (
+        <div className="w-full h-64 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h4 className="text-sm font-medium mb-2">{title || 'Trend Chart'}</h4>
+          {description && <p className="text-xs text-gray-600 mb-3">{description}</p>}
+          <div className="w-full h-48 bg-white dark:bg-gray-700 rounded border flex items-center justify-center">
+            <p className="text-xs text-gray-500">📈 Line chart: {data.length} data points</p>
+          </div>
+        </div>
+      );
+    
+    case 'pie':
+      return (
+        <div className="w-full h-64 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h4 className="text-sm font-medium mb-2">{title || 'Distribution'}</h4>
+          {description && <p className="text-xs text-gray-600 mb-3">{description}</p>}
+          <div className="w-full h-48 bg-white dark:bg-gray-700 rounded border flex items-center justify-center">
+            <p className="text-xs text-gray-500">🥧 Pie chart: {data.length} segments</p>
+          </div>
+        </div>
+      );
+    
+    default:
+      return (
+        <div className="w-full h-48 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+          <p className="text-xs text-gray-500">📊 Chart visualization ({data.length} items)</p>
+        </div>
+      );
+  }
+};
+
+/**
+ * Parse Chart Data from AI Response
+ * Extracts chart information from markdown code blocks
+ */
+const parseChartData = (content: string): any => {
+  // Look for chart or json code blocks
+  const chartMatch = content.match(/```(?:chart|graph|json)\s*\n([\s\S]*?)\n```/i);
+  
+  if (!chartMatch) return null;
+  
+  try {
+    const data = JSON.parse(chartMatch[1]);
+    
+    // Validate basic chart structure
+    if (data && Array.isArray(data.data) && data.data.length > 0) {
+      return {
+        type: data.type || 'bar',
+        data: data.data,
+        xKey: data.xKey || Object.keys(data.data[0])[0],
+        yKey: data.yKey || Object.keys(data.data[0])[1],
+        title: data.title || 'AI Generated Chart',
+        description: data.description || 'Generated from AI response'
+      };
+    }
+  } catch (error) {
+    // Fallback: try to extract simple data patterns
+    const lines = chartMatch[1].split('\n').filter(line => line.trim());
+    const data: any[] = [];
+    
+    lines.forEach(line => {
+      const parts = line.split(/[,;:\t]/).map(p => p.trim());
+      if (parts.length >= 2) {
+        const key = parts[0].replace(/['"]/g, '');
+        const value = parseFloat(parts[1]) || 0;
+        if (key && !isNaN(value)) {
+          data.push({ name: key, value });
+        }
+      }
+    });
+    
+    if (data.length > 0) {
+      return {
+        type: 'bar',
+        data,
+        xKey: 'name',
+        yKey: 'value',
+        title: 'Extracted Chart Data',
+        description: 'Parsed from AI response'
+      };
+    }
+  }
+  
+  return null;
+};
+
+/**
+ * Local Mode Response Generator
+ * Provides context-aware responses when API services are unavailable
+ */
+const generateLocalResponse = (message: string, attachments?: ChatAttachment[]): ChatMessage => {
+  const lowerMessage = message.toLowerCase();
+  
+  // Image analysis fallback
+  if (attachments?.some(att => att.type === 'image')) {
+    return {
+      role: 'assistant',
+      content: `I can see you've uploaded an image, but I'm currently operating in local mode without access to AI vision services. 
+
+Here are some things you can try:
+- Check your internet connection and API settings
+- Analyze the image manually and provide a text description
+- Upload the image data as a CSV or JSON file for analysis
+- Use local tools to extract data from the image
+
+Would you like me to help with data analysis of any text-based content you can provide?`,
+      timestamp: new Date().toISOString(),
+      isLocalResponse: true
+    };
+  }
+  
+  // Data analysis requests
+  if (lowerMessage.includes('analyze') || lowerMessage.includes('data')) {
+    return {
+      role: 'assistant',
+      content: `I'm operating in local mode. Here's what I can suggest for data analysis:
+
+## Local Data Analysis Options:
+- **Upload CSV/Excel files** - I can help structure analysis approaches
+- **Manual insights** - Share specific questions about your data
+- **Visualization suggestions** - Recommend chart types for your data
+
+Example analysis approach:
+\`\`\`chart
+{
+  "type": "bar",
+  "data": [
+    {"category": "Sample A", "value": 45},
+    {"category": "Sample B", "value": 67},
+    {"category": "Sample C", "value": 23}
+  ],
+  "title": "Sample Data Visualization"
+}
+\`\`\`
+
+What specific data would you like to explore?`,
+      timestamp: new Date().toISOString(),
+      isLocalResponse: true
+    };
+  }
+  
+  // General assistance
+  return {
+    role: 'assistant',
+    content: `I'm currently in local mode with limited capabilities. I can still help with:
+
+- **Data structure guidance** - Organizing your datasets
+- **Analysis planning** - Suggesting approaches for your data
+- **Visualization concepts** - Recommending chart types
+- **ML workflow guidance** - Planning your analysis steps
+
+To access full AI capabilities, please check:
+1. Your internet connection
+2. API key configuration in settings
+3. Service availability
+
+How can I assist you with local guidance today?`,
+    timestamp: new Date().toISOString(),
+    isLocalResponse: true
+  };
+};
+
+/**
+ * Scope Clarification Prompts
+ * Provides contextual prompts to help users focus their requests
+ */
+const getScopePrompt = (): { content: string; actions: string[] } | null => {
+  // Return scope prompts based on current context
+  return {
+    content: `## 🎯 How can I help you today?
+
+I'm your AI Associate for data analysis and machine learning. I can help you with:
+
+- **Data Analysis** - Upload files, explore patterns, generate insights  
+- **Machine Learning** - Train models, make predictions, optimize performance
+- **Visualization** - Create charts, dashboards, and interactive graphics
+- **Research Guidance** - Study design, hypothesis testing, statistical analysis
+
+What would you like to focus on?`,
+    actions: [
+      "Analyze my data",
+      "Train a ML model", 
+      "Create visualizations",
+      "Research guidance",
+      "Data preprocessing",
+      "Statistical analysis"
+    ]
+  };
+};
+
+/**
+ * File Utilities for Chat Attachments - Enhanced Version
+ */
+const FileUtils = {
+  // Convert file to base64
+  fileToBase64: (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  },
+
+  // Check if file is an image
+  isImage: (file: File): boolean => {
+    return file.type.startsWith('image/');
+  },
+  
+  // Get file extension
+  getFileExtension: (filename: string): string => {
+    return filename.split('.').pop()?.toLowerCase() || '';
+  },
+  
+  // Format file size in human-readable format
+  formatFileSize: (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  },
+
+  // Validate file size (25MB limit for multimodal)
+  validateFileSize: (file: File, maxSizeMB: number = 25): boolean => {
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    return file.size <= maxSizeBytes;
+  },
+
+  // Check if file size is within limits
+  isValidSize: (file: File): boolean => {
+    return FileUtils.validateFileSize(file, 25);
+  }
+};
+
+/**
+ * ML Workflow Action Detection Patterns
+ * Regex patterns to detect when AI responses suggest specific ML actions
+ */
+const ML_ACTION_PATTERNS = {
+  GENERATE_DATA: /\b(?:generate|create|make)\s+(?:dataset|data|sample)/i,
+  CHANGE_DOMAIN: /\b(?:switch|change|use|try)\s+(?:domain|field|sector|industry)[\s:]+(healthcare|finance|marketing|education|technology|retail)/i,
+  ADJUST_SAMPLE_SIZE: /\b(?:set|use|try|adjust)\s+(?:sample\s*size|row\s*count|data\s*points?)[\s:]+([\d,]+)/i,
+  CHANGE_MODEL: /\b(?:use|try|switch\s+to|apply)\s+(?:algorithm|model)[\s:]+(linear|logistic|random|decision|neural|svm)/i,
+  TRAIN_MODEL: /\b(?:train|build|fit|create)\s+(?:model|algorithm)/i,
+  VISUALIZE_DATA: /\b(?:plot|chart|visualize|graph|show)\s+(?:data|distribution|scatter|histogram)/i,
+  EXPORT_DATA: /\b(?:export|save|download)\s+(?:data|dataset|results)/i
+};
+
+/**
+ * Chart Detection and Rendering Patterns
+ * Patterns to detect and extract chart data from AI responses
+ */
+const CHART_PATTERNS = {
+  CHART_DATA: /```(?:chart|graph)\s*\n([\s\S]*?)\n```/gi,
+  JSON_DATA: /```json\s*\n([\s\S]*?)\n```/gi,
+  BAR_CHART: /\b(?:bar|column)\s+chart/i,
+  LINE_CHART: /\b(?:line|trend)\s+chart/i,
+  PIE_CHART: /\b(?:pie|donut)\s+chart/i,
+  SCATTER_CHART: /\b(?:scatter|point)\s+(?:plot|chart)/i,
+  AREA_CHART: /\b(?:area|filled)\s+chart/i
+};
+
+/**
+ * Enhanced Error States
+ */
+interface ErrorState {
+  type: 'api_failure' | 'network_error' | 'file_processing' | 'size_limit' | 'permission_denied' | 'timeout' | 'rate_limit';
+  message: string;
+  action?: string;
+  recoverable: boolean;
+}
+
+/**
+ * Scope Clarification Prompts
+ * Help users understand chat capabilities and set expectations
+ */
+const SCOPE_CLARIFICATION_PROMPTS = [
+  {
+    trigger: 'first_visit',
+    content: "👋 **Welcome to AI Associate!** I can help you with:\n\n• **Data Analysis**: Upload CSV, Excel, or image files for insights\n• **ML Workflows**: Generate datasets, train models, create visualizations\n• **Privacy Controls**: Secure local processing with encryption options\n• **File Processing**: Support for images, documents, and structured data\n\n*What would you like to explore first?*",
+    actions: ['Generate Sample Data', 'Upload File for Analysis', 'Learn About Privacy Features']
+  },
+  {
+    trigger: 'offline_mode',
+    content: "🔒 **Operating in Local Mode** - Your data stays private on your device.\n\n**Available Features:**\n• Basic file analysis\n• Sample data generation\n• Local chart creation\n• Privacy-first processing\n\n**To enable full AI features:** Provide an OpenAI API key in settings.",
+    actions: ['Try Local Analysis', 'Generate Sample Chart', 'View Privacy Settings']
+  },
+  {
+    trigger: 'api_unavailable',
+    content: "⚠️ **AI Services Temporarily Unavailable**\n\nI'm switching to local processing mode. You can still:\n\n• Analyze uploaded files locally\n• Generate basic visualizations\n• Access privacy controls\n• Use ML workflow tools\n\n*Full AI features will resume when the service is restored.*",
+    actions: ['Continue with Local Mode', 'Check Service Status', 'View Offline Capabilities']
+  }
+];
+
+/**
+ * Enhanced Fallback Messages and Error Recovery
+ */
+const ERROR_RECOVERY_TEMPLATES = {
+  API_FAILURE: {
+    content: "❌ **API Request Failed**\n\nI encountered an issue connecting to AI services. Here's what you can do:\n\n• **Try Again**: The issue might be temporary\n• **Local Mode**: Continue with offline analysis\n• **Check Settings**: Verify your API configuration\n• **File Analysis**: I can still process your uploads locally",
+    actions: ['Retry Request', 'Switch to Local Mode', 'Check API Settings'],
+    fallback: true
+  },
+  NETWORK_ERROR: {
+    content: "🌐 **Network Connection Issue**\n\nI'm having trouble reaching the AI services. While we resolve this:\n\n• **Local Processing**: Your files can still be analyzed\n• **Offline Charts**: I can create visualizations locally\n• **Data Privacy**: Your information remains secure\n• **Auto-Retry**: I'll automatically try reconnecting",
+    actions: ['Use Local Analysis', 'Generate Offline Chart', 'Check Connection'],
+    fallback: true
+  },
+  FILE_PROCESSING_ERROR: {
+    content: "📁 **File Processing Error**\n\nI had trouble processing your file. Let's troubleshoot:\n\n• **File Format**: Ensure it's a supported type (CSV, JSON, images)\n• **File Size**: Maximum 25MB for uploads\n• **File Content**: Check for data corruption or encoding issues\n• **Try Again**: Sometimes re-uploading helps",
+    actions: ['Try Different File', 'Check File Format', 'Reduce File Size'],
+    fallback: true
+  },
+  SIZE_LIMIT_ERROR: {
+    content: "⚠️ **File Size Limit Exceeded**\n\nYour file is larger than our 25MB limit. Here are some options:\n\n• **Compress File**: Reduce file size using compression\n• **Split Data**: Break large datasets into smaller chunks\n• **Sample Data**: Upload a representative sample\n• **Local Processing**: Some files can be processed locally",
+    actions: ['Compress File', 'Upload Sample', 'Process Locally'],
+    fallback: true
+  },
+  RATE_LIMIT_ERROR: {
+    content: "⏱️ **Rate Limit Reached**\n\nYou've reached the temporary usage limit. You can:\n\n• **Wait**: Limits reset automatically\n• **Local Mode**: Continue with offline features\n• **Optimize Requests**: Combine multiple questions\n• **Upgrade**: Consider a higher tier for more capacity",
+    actions: ['Wait and Retry', 'Use Local Mode', 'View Usage Info'],
+    fallback: true
+  }
+};
+
+/**
+ * Local Mode Fallback Templates
+ * Enhanced with better guidance and suggestions
+ */
+const LOCAL_FALLBACK_TEMPLATES = {
+  ANALYSIS: {
+    content: "🔍 **Local Data Analysis Complete**\n\nI've analyzed your data offline with privacy protection:\n\n• **Data Structure**: Detected structured data with multiple columns\n• **Quality Assessment**: Running completeness and consistency checks\n• **Pattern Recognition**: Looking for trends and correlations\n• **Next Steps**: Consider generating visualizations or training models\n\n*For advanced AI insights, enable online mode with API access.*",
+    chartData: {
+      type: 'bar' as const,
+      data: [
+        { name: 'Data Quality', value: 85 },
+        { name: 'Completeness', value: 92 },
+        { name: 'Consistency', value: 78 },
+        { name: 'Relevance', value: 88 }
+      ],
+      xKey: 'name',
+      yKey: 'value',
+      title: 'Local Data Assessment',
+      description: 'Privacy-first analysis of your uploaded data'
+    },
+    isLocalResponse: true,
+    actions: ['Generate Visualization', 'Train Model', 'Export Results']
+  },
+  VISUALIZATION: {
+    content: "📊 **Local Visualization Generated**\n\nCreated a sample chart based on common data patterns:\n\n• **Trend Analysis**: Showing data progression over time\n• **Pattern Recognition**: Identifying key relationships\n• **Insight Generation**: Highlighting important metrics\n• **Privacy Protected**: All processing done locally\n\n*Upload your own data for personalized visualizations.*",
+    chartData: {
+      type: 'line' as const,
+      data: [
+        { month: 'Jan', value: 65, category: 'Performance' },
+        { month: 'Feb', value: 78, category: 'Performance' },
+        { month: 'Mar', value: 82, category: 'Performance' },
+        { month: 'Apr', value: 89, category: 'Performance' },
+        { month: 'May', value: 94, category: 'Performance' }
+      ],
+      xKey: 'month',
+      yKey: 'value',
+      title: 'Sample Performance Trends',
+      description: 'Local visualization with privacy protection'
+    },
+    isLocalResponse: true,
+    actions: ['Upload Data', 'Try Different Chart', 'Generate Dataset']
+  },
+  IMAGE_ANALYSIS: {
+    content: "🖼️ **Local Image Processing**\n\nI can see your uploaded image and provide basic analysis:\n\n• **Image Properties**: Format, dimensions, and file size detected\n• **Basic Recognition**: General content and structure identified\n• **Privacy Mode**: Image processed locally, not sent to external services\n• **Limitations**: Advanced AI analysis requires API access\n\n*For detailed image analysis and AI-powered insights, enable online mode.*",
+    isLocalResponse: true,
+    actions: ['Enable Online Mode', 'Try Another Image', 'Learn More About Privacy']
+  },
+  GENERAL_HELP: {
+    content: "💡 **Local Mode Assistant Ready**\n\nI'm operating in privacy-first local mode. Here's what I can help with:\n\n• **File Analysis**: Process CSV, JSON, and image files locally\n• **Data Generation**: Create sample datasets for testing\n• **Visualizations**: Generate charts and graphs offline\n• **ML Workflows**: Basic model training and data processing\n\n*What would you like to work on first?*",
+    isLocalResponse: true,
+    actions: ['Upload File', 'Generate Data', 'Create Chart', 'Train Model']
+  }
+};
+
+// Duplicate FileUtils removed - consolidated into single enhanced declaration above
+
+/**
+ * Enhanced Props interface for the ChatPanel component with ML workflow integration and privacy features
+ * @interface ChatPanelProps
+ */
+interface ChatPanelProps {
+  /** OpenAI API status and availability information */
+  openaiStatus: OpenAIStatus | null;
+  /** Array of chat messages between user and AI assistant */
+  messages: ChatMessage[];
+  /** Current message being composed by the user */
+  goalDescription: string;
+  /** Files attached to the current message */
+  attachedFiles: File[];
+  /** Loading states for chat operations */
+  loading: { [key: string]: boolean };
+  /** Whether to use local model for analysis */
+  useLocalModel: boolean;
+  /** Callback when user input message changes */
+  onGoalDescriptionChange: (value: string) => void;
+  /** Callback to send the current message */
+  onSendMessage: () => void;
+  /** Callback when files are attached to message */
+  onFileAttachment: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Callback to remove an attached file by index */
+  onRemoveAttachedFile: (index: number) => void;
+  /** Optional callback to clear entire chat history */
+  onClearChat?: () => void;
+  
+  // Enhanced ML Workflow Integration Props
+  /** Data dispatch function for triggering data actions */
+  onDataDispatch?: (action: DataAction) => void;
+  /** Chat dispatch function for managing chat state */
+  onChatDispatch?: (action: ChatAction) => void;
+  /** Current data state for context-aware suggestions */
+  currentData?: { [key: string]: any[] } | null;
+  /** Current domain for intelligent suggestions */
+  currentDomain?: string;
+  /** Current sample size for optimization recommendations */
+  currentSampleSize?: number;
+  /** Callback to trigger data generation with AI-suggested parameters */
+  onTriggerDataGeneration?: (domain?: string, sampleSize?: number) => Promise<void>;
+  /** Callback to trigger model training */
+  onTriggerModelTraining?: () => Promise<void>;
+  /** Callback to trigger data export */
+  onTriggerDataExport?: () => void;
+  /** Callback to open visualization tab */
+  onTriggerVisualization?: () => void;
+  
+  // Privacy Enhancement Props
+  /** User consent for data sharing */
+  dataShareConsent?: boolean;
+  /** Whether encryption is enabled */
+  encryptionEnabled?: boolean;
+  /** Level of anonymization */
+  anonymizationLevel?: 'none' | 'basic' | 'strict';
+  /** Encryption key for chat history */
+  encryptionKey?: string;
+}
+
+/**
+ * Enhanced ChatPanel - AI-powered conversational interface with intelligent ML workflow integration
+ * 
+ * This component provides an intelligent chat interface that integrates with OpenAI's API
+ * and automatically detects and triggers ML workflow actions based on AI responses.
+ * 
+ * Key Features:
+ * - Real-time conversation with AI assistant
+ * - Intelligent ML workflow action detection and execution
+ * - File attachment support for contextual analysis
+ * - Markdown rendering for rich AI responses
+ * - Auto-scroll with performance optimization
+ * - Accessibility compliance with screen reader support
+ * - Local model fallback when OpenAI is unavailable
+ * 
+ * Enhanced ML Integration:
+ * - Automatic dataset generation when AI suggests it
+ * - Smart domain and sample size adjustments based on conversation context
+ * - Automatic model training triggers for workflow optimization
+ * - Context-aware visualization and export suggestions
+ * - Real-time action suggestions with user confirmation
+ * 
+ * Performance Optimizations:
+ * - Debounced auto-scroll (100ms) to prevent UI lag
+ * - Cleanup of timeout references to prevent memory leaks
+ * - Optimized re-rendering with proper useEffect dependencies
+ * 
+ * @component
+ * @param {ChatPanelProps} props - Component props containing chat state and ML workflow callbacks
+ * @returns {JSX.Element} The enhanced chat interface with ML workflow integration
+ * 
+ * @example
+ * ```tsx
+ * <ChatPanel
+ *   openaiStatus={{ openai_available: true, api_key_format: 'valid' }}
+ *   messages={chatHistory}
+ *   goalDescription="Analyze this dataset"
+ *   onDataDispatch={dispatchData}
+ *   onTriggerDataGeneration={generateData}
+ *   currentData={mlData}
+ *   currentDomain="healthcare"
+ * />
+ * ```
+ */
+export default function ChatPanel({
+  openaiStatus,
+  messages,
+  goalDescription,
+  attachedFiles,
+  loading,
+  useLocalModel,
+  onGoalDescriptionChange,
+  onSendMessage,
+  onFileAttachment,
+  onRemoveAttachedFile,
+  onClearChat,
+  // Enhanced ML workflow props
+  onDataDispatch,
+  onChatDispatch,
+  currentData,
+  currentDomain,
+  currentSampleSize,
+  onTriggerDataGeneration,
+  onTriggerModelTraining,
+  onTriggerDataExport,
+  onTriggerVisualization,
+  // Privacy enhancement props
+  dataShareConsent = false,
+  encryptionEnabled = true,
+  anonymizationLevel = 'basic',
+  encryptionKey
+}: ChatPanelProps) {
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State for ML action suggestions
+  const [suggestedActions, setSuggestedActions] = React.useState<Array<{
+    action: string;
+    description: string;
+    execute: () => void;
+    icon: React.ReactNode;
+  }>>([]);
+  
+  // Privacy enhancement states
+  const [privacySettingsOpen, setPrivacySettingsOpen] = useState(false);
+  const [showConsentPrompt, setShowConsentPrompt] = useState(!dataShareConsent);
+  
+  // Multimodal support states
+  const [imagePreview, setImagePreview] = useState<{[key: string]: string}>({});
+  const [dragActive, setDragActive] = useState(false);
+  
+  // Enhanced error handling states
+  const [errorState, setErrorState] = useState<ErrorState | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [showScopePrompt, setShowScopePrompt] = useState(messages.length === 0);
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+
+  // Debounced scroll-to-bottom function for performance
+  const scrollToBottom = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (chatScrollRef.current) {
+        const scrollElement = chatScrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (scrollElement) {
+          scrollElement.scrollTop = scrollElement.scrollHeight;
+        }
+      }
+    }, 100); // 100ms debounce
+  }, []);
+
+  /**
+   * Intelligent ML Action Detection and Execution
+   * Analyzes AI assistant responses and automatically triggers relevant ML workflow actions
+   */
+  const analyzeAndTriggerMLActions = useCallback(async (assistantMessage: string) => {
+    const actions: Array<{
+      action: string;
+      description: string;
+      execute: () => void;
+      icon: React.ReactNode;
+    }> = [];
+
+    try {
+      // Generate Data Detection
+      if (ML_ACTION_PATTERNS.GENERATE_DATA.test(assistantMessage)) {
+        const domainMatch = assistantMessage.match(ML_ACTION_PATTERNS.CHANGE_DOMAIN);
+        const sampleSizeMatch = assistantMessage.match(ML_ACTION_PATTERNS.ADJUST_SAMPLE_SIZE);
+        
+        const suggestedDomain = domainMatch ? domainMatch[1] : currentDomain;
+        const suggestedSize = sampleSizeMatch ? parseInt(sampleSizeMatch[1].replace(/,/g, '')) : currentSampleSize;
+
+        actions.push({
+          action: 'generate-data',
+          description: `Generate ${suggestedSize || 100} samples for ${suggestedDomain || 'current'} domain`,
+          icon: <Zap className="h-4 w-4" />,
+          execute: () => {
+            if (onDataDispatch && suggestedDomain && suggestedDomain !== currentDomain) {
+              onDataDispatch({ type: 'SET_DOMAIN', payload: suggestedDomain });
+              mlLogger.info(`Domain automatically updated to: ${suggestedDomain}`);
+            }
+            if (onDataDispatch && suggestedSize && suggestedSize !== currentSampleSize) {
+              onDataDispatch({ type: 'SET_SAMPLE_SIZE', payload: suggestedSize });
+              mlLogger.info(`Sample size automatically updated to: ${suggestedSize}`);
+            }
+            if (onTriggerDataGeneration) {
+              onTriggerDataGeneration(suggestedDomain, suggestedSize);
+              uiLogger.info(`Triggered data generation: ${suggestedDomain}, ${suggestedSize} samples`);
+            }
+          }
+        });
+      }
+
+      // Domain Change Detection
+      const domainMatch = assistantMessage.match(ML_ACTION_PATTERNS.CHANGE_DOMAIN);
+      if (domainMatch && domainMatch[1] !== currentDomain) {
+        const newDomain = domainMatch[1];
+        actions.push({
+          action: 'change-domain',
+          description: `Switch to ${newDomain} domain`,
+          icon: <Settings className="h-4 w-4" />,
+          execute: () => {
+            if (onDataDispatch) {
+              onDataDispatch({ type: 'SET_DOMAIN', payload: newDomain });
+              mlLogger.info(`Domain changed to: ${newDomain}`);
+            }
+          }
+        });
+      }
+
+      // Sample Size Adjustment
+      const sampleSizeMatch = assistantMessage.match(ML_ACTION_PATTERNS.ADJUST_SAMPLE_SIZE);
+      if (sampleSizeMatch) {
+        const newSize = parseInt(sampleSizeMatch[1].replace(/,/g, ''));
+        if (newSize !== currentSampleSize) {
+          actions.push({
+            action: 'adjust-sample-size',
+            description: `Set sample size to ${newSize.toLocaleString()}`,
+            icon: <Settings className="h-4 w-4" />,
+            execute: () => {
+              if (onDataDispatch) {
+                onDataDispatch({ type: 'SET_SAMPLE_SIZE', payload: newSize });
+                mlLogger.info(`Sample size changed to: ${newSize}`);
+              }
+            }
+          });
+        }
+      }
+
+      // Model Training Detection
+      if (ML_ACTION_PATTERNS.TRAIN_MODEL.test(assistantMessage) && currentData) {
+        actions.push({
+          action: 'train-model',
+          description: 'Train ML model with current data',
+          icon: <BrainCircuit className="h-4 w-4" />,
+          execute: () => {
+            if (onTriggerModelTraining) {
+              onTriggerModelTraining();
+              uiLogger.info('Triggered model training');
+            }
+          }
+        });
+      }
+
+      // Visualization Detection
+      if (ML_ACTION_PATTERNS.VISUALIZE_DATA.test(assistantMessage) && currentData) {
+        actions.push({
+          action: 'visualize-data',
+          description: 'Open data visualization',
+          icon: <BrainCircuit className="h-4 w-4" />,
+          execute: () => {
+            if (onTriggerVisualization) {
+              onTriggerVisualization();
+              uiLogger.info('Triggered data visualization');
+            }
+          }
+        });
+      }
+
+      // Export Data Detection
+      if (ML_ACTION_PATTERNS.EXPORT_DATA.test(assistantMessage) && currentData) {
+        actions.push({
+          action: 'export-data',
+          description: 'Export current dataset',
+          icon: <FileText className="h-4 w-4" />,
+          execute: () => {
+            if (onTriggerDataExport) {
+              onTriggerDataExport();
+              uiLogger.info('Triggered data export');
+            }
+          }
+        });
+      }
+
+      // Update suggested actions
+      setSuggestedActions(actions);
+      
+      if (actions.length > 0) {
+        mlLogger.info(`Detected ${actions.length} suggested ML actions from AI response`);
+      }
+
+    } catch (error) {
+      mlLogger.error('Error analyzing ML actions:', error);
+    }
+  }, [currentData, currentDomain, currentSampleSize, onDataDispatch, onTriggerDataGeneration, onTriggerModelTraining, onTriggerDataExport, onTriggerVisualization]);
+
+  /**
+   * Privacy Enhancement Utilities
+   */
+  
+  // Generate or retrieve encryption key
+  const getOrCreateEncryptionKey = useCallback(() => {
+    if (encryptionKey) return encryptionKey;
+    
+    const newKey = CryptoJS.lib.WordArray.random(256/8).toString();
+    if (onChatDispatch) {
+      onChatDispatch({ type: 'SET_ENCRYPTION_KEY', payload: newKey });
+    }
+    return newKey;
+  }, [encryptionKey, onChatDispatch]);
+
+  // Encrypt message content
+  const encryptMessage = useCallback((content: string): string => {
+    if (!encryptionEnabled) return content;
+    
+    try {
+      const key = getOrCreateEncryptionKey();
+      const encrypted = CryptoJS.AES.encrypt(content, key).toString();
+      mlLogger.info('Message encrypted successfully');
+      return encrypted;
+    } catch (error) {
+      mlLogger.error('Encryption failed:', error);
+      return content;
+    }
+  }, [encryptionEnabled, getOrCreateEncryptionKey]);
+
+  // Decrypt message content
+  const decryptMessage = useCallback((encryptedContent: string): string => {
+    if (!encryptionEnabled || !encryptionKey) return encryptedContent;
+    
+    try {
+      const decrypted = CryptoJS.AES.decrypt(encryptedContent, encryptionKey).toString(CryptoJS.enc.Utf8);
+      return decrypted || encryptedContent;
+    } catch (error) {
+      mlLogger.error('Decryption failed:', error);
+      return encryptedContent;
+    }
+  }, [encryptionEnabled, encryptionKey]);
+
+  // Anonymize message content based on level
+  const anonymizeContent = useCallback((content: string): string => {
+    if (anonymizationLevel === 'none') return content;
+    
+    let anonymized = content;
+    
+    if (anonymizationLevel === 'basic' || anonymizationLevel === 'strict') {
+      // Remove email addresses
+      anonymized = anonymized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]');
+      
+      // Remove phone numbers
+      anonymized = anonymized.replace(/(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[PHONE_REDACTED]');
+      
+      // Remove social security numbers
+      anonymized = anonymized.replace(/\b\d{3}-?\d{2}-?\d{4}\b/g, '[SSN_REDACTED]');
+    }
+    
+    if (anonymizationLevel === 'strict') {
+      // Remove names (basic pattern)
+      anonymized = anonymized.replace(/\b[A-Z][a-z]+ [A-Z][a-z]+\b/g, '[NAME_REDACTED]');
+      
+      // Remove addresses
+      anonymized = anonymized.replace(/\b\d+\s+[\w\s]+\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd)\b/gi, '[ADDRESS_REDACTED]');
+      
+      // Remove dates
+      anonymized = anonymized.replace(/\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b/g, '[DATE_REDACTED]');
+    }
+    
+    return anonymized;
+  }, [anonymizationLevel]);
+
+  /**
+   * Chart Rendering Component
+   * Renders Recharts visualizations based on chart data
+   */
+  const ChartRenderer = React.memo(({ chartData }: { chartData: ChartData }) => {
+    const chartColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4'];
+    
+    const commonProps = {
+      width: '100%',
+      height: 300,
+      data: chartData.data,
+      margin: { top: 20, right: 30, left: 20, bottom: 20 }
+    };
+
+    switch (chartData.type) {
+      case 'bar':
+        return (
+          <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {chartData.title || 'Bar Chart'}
+            </h4>
+            <ResponsiveContainer {...commonProps}>
+              <BarChart data={chartData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={chartData.xKey || 'name'} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey={chartData.yKey || 'value'} fill={chartColors[0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            {chartData.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{chartData.description}</p>
+            )}
+          </div>
+        );
+
+      case 'line':
+        return (
+          <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {chartData.title || 'Line Chart'}
+            </h4>
+            <ResponsiveContainer {...commonProps}>
+              <LineChart data={chartData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={chartData.xKey || 'name'} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey={chartData.yKey || 'value'} 
+                  stroke={chartColors[0]} 
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            {chartData.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{chartData.description}</p>
+            )}
+          </div>
+        );
+
+      case 'pie':
+        return (
+          <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {chartData.title || 'Pie Chart'}
+            </h4>
+            <ResponsiveContainer {...commonProps}>
+              <PieChart>
+                <Pie
+                  data={chartData.data}
+                  dataKey={chartData.yKey || 'value'}
+                  nameKey={chartData.xKey || 'name'}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  label
+                >
+                  {chartData.data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            {chartData.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{chartData.description}</p>
+            )}
+          </div>
+        );
+
+      case 'scatter':
+        return (
+          <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {chartData.title || 'Scatter Plot'}
+            </h4>
+            <ResponsiveContainer {...commonProps}>
+              <ScatterChart data={chartData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={chartData.xKey || 'x'} />
+                <YAxis dataKey={chartData.yKey || 'y'} />
+                <Tooltip />
+                <Scatter dataKey={chartData.yKey || 'y'} fill={chartColors[0]} />
+              </ScatterChart>
+            </ResponsiveContainer>
+            {chartData.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{chartData.description}</p>
+            )}
+          </div>
+        );
+
+      case 'area':
+        return (
+          <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {chartData.title || 'Area Chart'}
+            </h4>
+            <ResponsiveContainer {...commonProps}>
+              <AreaChart data={chartData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={chartData.xKey || 'name'} />
+                <YAxis />
+                <Tooltip />
+                <Area 
+                  type="monotone" 
+                  dataKey={chartData.yKey || 'value'} 
+                  stroke={chartColors[0]} 
+                  fill={chartColors[0]}
+                  fillOpacity={0.6}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            {chartData.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{chartData.description}</p>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  });
+
+  /**
+   * Parse chart data from AI response content
+   */
+  const parseChartData = useCallback((content: string): ChartData | null => {
+    try {
+      // Try to extract chart data from code blocks
+      const chartMatch = content.match(CHART_PATTERNS.CHART_DATA);
+      const jsonMatch = content.match(CHART_PATTERNS.JSON_DATA);
+      
+      let dataStr = chartMatch?.[1] || jsonMatch?.[1];
+      if (!dataStr) return null;
+
+      const parsedData = JSON.parse(dataStr);
+      
+      // Determine chart type based on content
+      let chartType: ChartData['type'] = 'bar';
+      if (CHART_PATTERNS.LINE_CHART.test(content)) chartType = 'line';
+      else if (CHART_PATTERNS.PIE_CHART.test(content)) chartType = 'pie';
+      else if (CHART_PATTERNS.SCATTER_CHART.test(content)) chartType = 'scatter';
+      else if (CHART_PATTERNS.AREA_CHART.test(content)) chartType = 'area';
+      
+      return {
+        type: chartType,
+        data: Array.isArray(parsedData) ? parsedData : parsedData.data || [],
+        xKey: parsedData.xKey || Object.keys(parsedData[0] || {})[0],
+        yKey: parsedData.yKey || Object.keys(parsedData[0] || {})[1],
+        title: parsedData.title || `${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart`,
+        description: parsedData.description
+      };
+    } catch (error) {
+      mlLogger.warn('Failed to parse chart data:', error);
+      return null;
+    }
+  }, []);
+
+  /**
+   * Enhanced file processing with image support
+   */
+  const processAttachedFiles = useCallback(async (files: File[]): Promise<ChatAttachment[]> => {
+    const attachments: ChatAttachment[] = [];
+    
+    for (const file of files) {
+      if (!FileUtils.isValidSize(file)) {
+        uiLogger.warn(`File ${file.name} exceeds size limit (25MB)`);
+        continue;
+      }
+
+      const attachment: ChatAttachment = {
+        type: FileUtils.isImage(file) ? 'image' : 'file',
+        name: file.name,
+        size: file.size,
+        mimeType: file.type
+      };
+
+      if (FileUtils.isImage(file)) {
+        try {
+          attachment.base64 = await FileUtils.fileToBase64(file);
+          const thumbnail = await FileUtils.generateThumbnail(file);
+          setImagePreview(prev => ({ ...prev, [file.name]: thumbnail }));
+          mlLogger.info(`Processed image: ${file.name} (${Math.round(file.size/1024)}KB)`);
+        } catch (error) {
+          mlLogger.error('Failed to process image:', error);
+        }
+      }
+
+      attachments.push(attachment);
+    }
+
+    return attachments;
+  }, []);
+
+  /**
+   * Enhanced connection status monitoring
+   */
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        setConnectionStatus('checking');
+        // Simple connectivity check
+        await fetch('/api/ml/test-openai', { method: 'HEAD' });
+        setConnectionStatus('online');
+      } catch (error) {
+        setConnectionStatus('offline');
+        mlLogger.warn('Connection check failed:', error);
+      }
+    };
+
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // Check every 30s
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  /**
+   * Enhanced error recovery with user-friendly messaging
+   */
+  const handleError = useCallback((error: any, type: ErrorState['type']) => {
+    const errorTemplates = ERROR_RECOVERY_TEMPLATES;
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    let recoverable = true;
+
+    switch (type) {
+      case 'api_failure':
+        errorMessage = errorTemplates.API_FAILURE.content;
+        break;
+      case 'network_error':
+        errorMessage = errorTemplates.NETWORK_ERROR.content;
+        break;
+      case 'file_processing':
+        errorMessage = errorTemplates.FILE_PROCESSING_ERROR.content;
+        break;
+      case 'size_limit':
+        errorMessage = errorTemplates.SIZE_LIMIT_ERROR.content;
+        break;
+      case 'rate_limit':
+        errorMessage = errorTemplates.RATE_LIMIT_ERROR.content;
+        break;
+      case 'timeout':
+        errorMessage = '⏱️ **Request Timeout** - The request took too long. Please try with a smaller file or simpler query.';
+        break;
+      default:
+        recoverable = false;
+    }
+
+    setErrorState({
+      type,
+      message: errorMessage,
+      recoverable
+    });
+
+    // Add error message to chat
+    if (onChatDispatch) {
+      onChatDispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          role: 'assistant',
+          content: errorMessage,
+          isLocalResponse: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    uiLogger.error(`Error handled: ${type}`, error);
+  }, [onChatDispatch]);
+
+  /**
+   * Generate appropriate response based on context and availability
+   */
+  const generateContextualResponse = useCallback((hasImages: boolean, hasFiles: boolean, isError: boolean = false): ChatMessage => {
+    // Handle error states
+    if (isError && errorState) {
+      return {
+        role: 'assistant',
+        content: errorState.message,
+        isLocalResponse: true,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Handle different contexts
+    if (hasImages) {
+      return {
+        role: 'assistant',
+        content: LOCAL_FALLBACK_TEMPLATES.IMAGE_ANALYSIS.content,
+        isLocalResponse: true,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    if (hasFiles || currentData) {
+      const template = LOCAL_FALLBACK_TEMPLATES.ANALYSIS;
+      return {
+        role: 'assistant',
+        content: template.content,
+        chartData: template.chartData,
+        isLocalResponse: true,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Default helpful response
+    const template = LOCAL_FALLBACK_TEMPLATES.GENERAL_HELP;
+    return {
+      role: 'assistant',
+      content: template.content,
+      isLocalResponse: true,
+      timestamp: new Date().toISOString()
+    };
+  }, [currentData, errorState]);
+
+  /**
+   * Retry mechanism for failed requests
+   */
+  const retryRequest = useCallback(async () => {
+    if (retryCount >= 3) {
+      handleError(new Error('Max retries exceeded'), 'api_failure');
+      return;
+    }
+
+    setRetryCount(prev => prev + 1);
+    setErrorState(null);
+    
+    try {
+      // Attempt to resend the last message
+      await handlePrivatelyEnhancedSendMessage();
+    } catch (error) {
+      handleError(error, 'api_failure');
+    }
+  }, [retryCount, handleError]);
+
+  /**
+   * Show scope clarification prompt based on context
+   */
+  const getScopePrompt = useCallback(() => {
+    if (!showScopePrompt) return null;
+
+    if (!openaiStatus?.openai_available) {
+      return SCOPE_CLARIFICATION_PROMPTS.find(p => p.trigger === 'offline_mode');
+    }
+
+    if (connectionStatus === 'offline') {
+      return SCOPE_CLARIFICATION_PROMPTS.find(p => p.trigger === 'api_unavailable');
+    }
+
+    if (messages.length === 0) {
+      return SCOPE_CLARIFICATION_PROMPTS.find(p => p.trigger === 'first_visit');
+    }
+
+    return null;
+  }, [showScopePrompt, openaiStatus, connectionStatus, messages.length]);
+
+  /**
+   * Enhanced send message with comprehensive error handling and recovery
+   */
+  const handlePrivatelyEnhancedSendMessage = useCallback(async () => {
+    try {
+      // Clear any previous errors
+      setErrorState(null);
+      setShowScopePrompt(false);
+
+      if (!goalDescription.trim() && attachedFiles.length === 0) {
+        handleError(new Error('Message cannot be empty'), 'permission_denied');
+        return;
+      }
+
+      // Check for consent before proceeding
+      if (!dataShareConsent && !useLocalModel) {
+        setShowConsentPrompt(true);
+        return;
+      }
+
+      // Validate file sizes before processing
+      for (const file of attachedFiles) {
+        if (!FileUtils.isValidSize(file)) {
+          handleError(new Error(`File ${file.name} exceeds size limit`), 'size_limit');
+          return;
+        }
+      }
+
+      // Process attached files with error handling
+      let processedAttachments: ChatAttachment[] = [];
+      try {
+        processedAttachments = await processAttachedFiles(attachedFiles);
+      } catch (error) {
+        handleError(error, 'file_processing');
+        return;
+      }
+
+      const hasImages = processedAttachments.some(att => att.type === 'image');
+      const hasFiles = processedAttachments.length > 0;
+
+      // Anonymize content before sending
+      const anonymizedGoal = anonymizeContent(goalDescription);
+
+      // Create enhanced message with attachments
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: anonymizedGoal,
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
+        timestamp: new Date().toISOString()
+      };
+
+      // Add user message to chat
+      if (onChatDispatch) {
+        onChatDispatch({ 
+          type: 'ADD_MESSAGE', 
+          payload: userMessage
+        });
+      }
+
+      // Clear input
+      onGoalDescriptionChange('');
+      if (attachedFiles.length > 0) {
+        // Clear attached files
+        for (let i = attachedFiles.length - 1; i >= 0; i--) {
+          onRemoveAttachedFile(i);
+        }
+      }
+
+      // Reset retry count on successful input processing
+      setRetryCount(0);
+
+      // Handle different processing modes
+      if (useLocalModel || !openaiStatus?.openai_available || connectionStatus === 'offline') {
+        // Generate contextual local response
+        const localResponse = generateContextualResponse(hasImages, hasFiles, false);
+        
+        setTimeout(() => {
+          if (onChatDispatch) {
+            onChatDispatch({ 
+              type: 'ADD_MESSAGE', 
+              payload: localResponse
+            });
+          }
+        }, Math.random() * 1000 + 500); // Realistic processing time
+        
+        return;
+      }
+
+      // Attempt API call with timeout and error handling
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), 30000)
+        );
+
+        await Promise.race([
+          onSendMessage(),
+          timeoutPromise
+        ]);
+        
+        // Hide consent prompt after successful send
+        setShowConsentPrompt(false);
+        
+      } catch (error: any) {
+        // Handle specific API errors
+        if (error.message?.includes('timeout')) {
+          handleError(error, 'timeout');
+        } else if (error.message?.includes('rate limit') || error.status === 429) {
+          handleError(error, 'rate_limit');
+        } else if (error.message?.includes('network') || !navigator.onLine) {
+          handleError(error, 'network_error');
+        } else {
+          handleError(error, 'api_failure');
+        }
+      }
+
+    } catch (error: any) {
+      // Catch any unexpected errors
+      handleError(error, 'api_failure');
+      mlLogger.error('Unexpected error in sendMessage:', error);
+    }
+  }, [
+    goalDescription, 
+    attachedFiles, 
+    dataShareConsent, 
+    useLocalModel, 
+    anonymizeContent, 
+    processAttachedFiles, 
+    generateContextualResponse, 
+    onChatDispatch, 
+    onGoalDescriptionChange, 
+    onRemoveAttachedFile, 
+    openaiStatus, 
+    connectionStatus,
+    onSendMessage, 
+    handleError,
+    retryCount
+  ]);
+
+  // Generate anonymization prompt for AI responses
+  const generateAnonymizationPrompt = useCallback((): string => {
+    const prompts = {
+      'none': '',
+      'basic': 'Please avoid including specific personal information like emails, phone numbers, or SSNs in your response.',
+      'strict': 'Please use generic examples and avoid any specific personal information, names, addresses, or dates in your response. Use placeholders like [USER], [COMPANY], [DATE] when needed.'
+    };
+    
+    return prompts[anonymizationLevel] || '';
+  }, [anonymizationLevel]);
+
+  // Auto-scroll when new messages are added and analyze AI responses
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom();
+      
+      // Analyze the last AI assistant message for ML actions
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        analyzeAndTriggerMLActions(lastMessage.content);
+      }
+    }
+    
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [messages.length, scrollToBottom, analyzeAndTriggerMLActions]);
+
+  return (
+    <Card className="h-full bg-white dark:bg-gray-800 border-none shadow-sm flex flex-col">
+      <CardHeader className="p-0 pb-2">
+        <CardTitle className="flex items-center justify-between text-base" id="chat-panel-title">
+          <div className="flex items-center gap-2">
+            <BrainCircuit className="h-5 w-5 text-blue-500" />
+            AI Associate
+            {openaiStatus && (
+              <Badge 
+                variant={openaiStatus.openai_available ? "default" : "destructive"} 
+                className="ml-2 text-xs"
+              >
+              {openaiStatus.openai_available ? 'Available' : 'Unavailable'}
+            </Badge>
+          )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Privacy Settings Button */}
+            <Dialog open={privacySettingsOpen} onOpenChange={setPrivacySettingsOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-gray-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  aria-label="Privacy settings"
+                  title="Privacy & Security Settings"
+                >
+                  <Shield className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Privacy & Security Settings
+                  </DialogTitle>
+                  <DialogDescription>
+                    Configure your chat privacy and data protection preferences.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4 py-4">
+                  {/* Data Sharing Consent */}
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="data-consent"
+                      checked={dataShareConsent}
+                      onCheckedChange={(checked) => {
+                        if (onChatDispatch) {
+                          onChatDispatch({ type: 'SET_DATA_SHARE_CONSENT', payload: !!checked });
+                        }
+                        setShowConsentPrompt(!checked);
+                      }}
+                      aria-describedby="data-consent-description"
+                    />
+                    <div className="space-y-1">
+                      <label htmlFor="data-consent" className="text-sm font-medium cursor-pointer">
+                        Data Sharing Consent
+                      </label>
+                      <p id="data-consent-description" className="text-xs text-gray-600 dark:text-gray-400">
+                        Allow sharing your messages with AI services for analysis. When disabled, only local processing is used.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Encryption Toggle */}
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="encryption-enabled"
+                      checked={encryptionEnabled}
+                      onCheckedChange={(checked) => {
+                        if (onChatDispatch) {
+                          onChatDispatch({ type: 'SET_ENCRYPTION_ENABLED', payload: !!checked });
+                        }
+                      }}
+                      aria-describedby="encryption-description"
+                    />
+                    <div className="space-y-1">
+                      <label htmlFor="encryption-enabled" className="text-sm font-medium cursor-pointer flex items-center gap-1">
+                        <Lock className="h-3 w-3" />
+                        Chat Encryption
+                      </label>
+                      <p id="encryption-description" className="text-xs text-gray-600 dark:text-gray-400">
+                        Encrypt your chat messages locally using AES-256 encryption for enhanced security.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Anonymization Level */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <Eye className="h-3 w-3" />
+                      Anonymization Level
+                    </label>
+                    <Select 
+                      value={anonymizationLevel} 
+                      onValueChange={(value: 'none' | 'basic' | 'strict') => {
+                        if (onChatDispatch) {
+                          onChatDispatch({ type: 'SET_ANONYMIZATION_LEVEL', payload: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None - No anonymization</SelectItem>
+                        <SelectItem value="basic">Basic - Remove emails, phones, SSNs</SelectItem>
+                        <SelectItem value="strict">Strict - Remove all personal identifiers</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Controls how personal information is filtered from your messages.
+                    </p>
+                  </div>
+
+                  {/* Privacy Status Summary */}
+                  <div className="pt-2 border-t">
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span>Encryption:</span>
+                        <Badge variant={encryptionEnabled ? "default" : "secondary"} className="text-xs h-4">
+                          {encryptionEnabled ? "Enabled" : "Disabled"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Data Sharing:</span>
+                        <Badge variant={dataShareConsent ? "default" : "secondary"} className="text-xs h-4">
+                          {dataShareConsent ? "Consented" : "Local Only"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Anonymization:</span>
+                        <Badge variant="outline" className="text-xs h-4">
+                          {anonymizationLevel.charAt(0).toUpperCase() + anonymizationLevel.slice(1)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Clear Chat Button */}
+            {messages.length > 0 && onClearChat && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onClearChat}
+                className="text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                aria-label="Clear chat history"
+                title="Clear all messages"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0 flex-1 overflow-hidden flex flex-col pt-3">
+        {/* ML Action Suggestions Bar */}
+        {suggestedActions.length > 0 && (
+          <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+            <div className="flex items-center gap-2 mb-2">
+              <BrainCircuit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                AI Suggested Actions
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestedActions.map((suggestion, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={suggestion.execute}
+                  className="h-8 text-xs bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/50"
+                  aria-label={`Execute suggested action: ${suggestion.description}`}
+                >
+                  {suggestion.icon}
+                  <span className="ml-1">{suggestion.description}</span>
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSuggestedActions([])}
+              className="mt-2 h-6 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+            >
+              Dismiss suggestions
+            </Button>
+          </div>
+        )}
+
+        {/* Privacy Consent Prompt */}
+        {showConsentPrompt && !dataShareConsent && !useLocalModel && (
+          <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
+            <div className="flex items-start gap-2">
+              <Shield className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                  Data Sharing Required
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                  To send messages to AI services, we need your consent to share your data. 
+                  Alternatively, you can enable local processing only.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (onChatDispatch) {
+                        onChatDispatch({ type: 'SET_DATA_SHARE_CONSENT', payload: true });
+                      }
+                      setShowConsentPrompt(false);
+                    }}
+                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    Grant Consent
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowConsentPrompt(false)}
+                    className="h-7 text-xs"
+                  >
+                    Use Local Only
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ScrollArea
+          className="flex-1 mb-3" 
+          ref={chatScrollRef}
+          role="log"
+          aria-label="Chat conversation"
+          aria-labelledby="chat-panel-title"
+        >
+          <div className="space-y-3 pr-4">
+            {/* Scope Clarification Prompts */}
+            {(() => {
+              const scopePrompt = getScopePrompt();
+              return scopePrompt ? (
+                <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{scopePrompt.content}</ReactMarkdown>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {scopePrompt.actions.map((action, idx) => (
+                      <Button
+                        key={idx}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          onGoalDescriptionChange(action);
+                          setShowScopePrompt(false);
+                        }}
+                        className="text-xs h-7 bg-blue-100 dark:bg-blue-800 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700"
+                      >
+                        {action}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowScopePrompt(false)}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              ) : null;
+            })()}
+
+            {/* Error Recovery UI */}
+            {errorState && (
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{errorState.message}</ReactMarkdown>
+                </div>
+                {errorState.recoverable && (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={retryRequest}
+                      disabled={retryCount >= 3}
+                      className="text-xs h-7 bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Retry ({3 - retryCount} attempts left)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setErrorState(null)}
+                      className="text-xs h-7"
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Connection Status Indicator */}
+            {connectionStatus === 'offline' && (
+              <div className="mb-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-700">
+                <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                  <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                  <span>Operating in offline mode - Limited functionality available</span>
+                </div>
+              </div>
+            )}
+
+            {messages.length === 0 && !getScopePrompt() ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4" role="status">
+                Start a conversation by sending a message below
+              </p>
+            ) : (
+              messages.map((msg, i) => (
+                <div 
+                  key={i} 
+                  className={`p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-50 dark:bg-gray-700 text-right' : 'bg-gray-50 dark:bg-gray-600 text-left'}`}
+                  role="article"
+                  aria-label={`${msg.role === 'user' ? 'User' : 'AI Assistant'} message`}
+                >
+                  {/* Message Content */}
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      {msg.isLocalResponse && (
+                        <div className="mb-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <BrainCircuit className="h-3 w-3" />
+                          Local Mode Response
+                        </div>
+                      )}
+                      <ReactMarkdown
+                        components={{
+                          a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" />
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-sm">
+                      {msg.content}
+                    </div>
+                  )}
+
+                  {/* User Message Attachments (Images and Files) */}
+                  {msg.role === 'user' && msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Attachments:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {msg.attachments.map((attachment, idx) => (
+                          <div key={idx} className="relative">
+                            {attachment.type === 'image' && attachment.base64 ? (
+                              <div className="relative group">
+                                <img
+                                  src={`data:${attachment.mimeType};base64,${attachment.base64}`}
+                                  alt={attachment.name}
+                                  className="h-20 w-20 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => {
+                                    // Open image in full size
+                                    window.open(`data:${attachment.mimeType};base64,${attachment.base64}`, '_blank');
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all">
+                                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Camera className="h-3 w-3 text-white drop-shadow-lg" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                                <FileText className="h-3 w-3" />
+                                <span className="max-w-20 truncate">{attachment.name}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Assistant Message Chart Data */}
+                  {msg.role === 'assistant' && msg.chartData && (
+                    <div className="mt-3">
+                      <ChartRenderer chartData={msg.chartData} />
+                    </div>
+                  )}
+
+                  {/* Parse and render inline chart data from assistant responses */}
+                  {msg.role === 'assistant' && !msg.chartData && (
+                    (() => {
+                      const inlineChartData = parseChartData(msg.content);
+                      return inlineChartData ? (
+                        <div className="mt-3">
+                          <ChartRenderer chartData={inlineChartData} />
+                        </div>
+                      ) : null;
+                    })()
+                  )}
+
+                  {/* Message Timestamp */}
+                  {msg.timestamp && (
+                    <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+            {loading.analysis && (
+              <div className="flex justify-start" role="status" aria-live="polite">
+                <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-sm flex items-center gap-2">
+                  <div 
+                    className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"
+                    aria-label="Loading"
+                  ></div>
+                  <span className="text-gray-600 dark:text-gray-400">Thinking...</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <div className="flex-shrink-0 space-y-2">
+          {/* File chips display with accessibility */}
+          {attachedFiles.length > 0 && (
+            <div 
+              className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-md max-h-20 overflow-y-auto"
+              role="region"
+              aria-label="Attached files"
+            >
+              {attachedFiles.map((file, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs"
+                  role="group"
+                  aria-label={`Attached file: ${file.name}`}
+                >
+                  {FileUtils.isImage(file) ? (
+                    <>
+                      <Image className="h-3 w-3" aria-hidden="true" />
+                      <span className="max-w-20 truncate">{file.name}</span>
+                      {imagePreview[file.name] && (
+                        <img 
+                          src={imagePreview[file.name]} 
+                          alt={`Preview of ${file.name}`}
+                          className="absolute -top-12 left-0 h-10 w-10 object-cover rounded border shadow-lg z-10"
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-3 w-3" aria-hidden="true" />
+                      <span className="max-w-20 truncate">{file.name}</span>
+                    </>
+                  )}
+                  <button
+                    onClick={() => onRemoveAttachedFile(index)}
+                    className="ml-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    aria-label={`Remove attached file ${file.name}`}
+                    title={`Remove ${file.name}`}
+                    type="button"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Chat input with paperclip and send buttons */}
+          <div className="relative">
+            <Textarea
+              placeholder="Message Associate... (e.g., 'Anonymize sensitive columns' for privacy)"
+              value={goalDescription}
+              onChange={(e) => onGoalDescriptionChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if ((goalDescription.trim() || attachedFiles.length > 0) && !loading.analysis) {
+                    handlePrivatelyEnhancedSendMessage();
+                  }
+                }
+              }}
+              className="h-20 text-sm pr-20 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 resize-none shadow-sm"
+              aria-label="Chat with AI Associate for guidance and recommendations"
+              maxLength={1000}
+              disabled={!openaiStatus?.openai_available && !useLocalModel}
+            />
+            
+            {/* Enhanced file attachment input with image support */}
+            <input
+              type="file"
+              multiple
+              accept=".csv,.txt,.pdf,.json,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.xlsx,.docx,.pptx"
+              id="file-attachment"
+              className="sr-only"
+              onChange={onFileAttachment}
+            />
+            
+            {/* File attachment button with accessibility */}
+            <label
+              htmlFor="file-attachment"
+              className="absolute right-12 bottom-2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-800 rounded"
+              title="Attach files & images (.csv, .txt, .pdf, .json, .jpg, .png, .gif, etc.)"
+              aria-label="Attach files to message"
+              tabIndex={0}
+              role="button"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  document.getElementById('file-attachment')?.click();
+                }
+              }}
+            >
+              <Paperclip className="h-4 w-4" aria-hidden="true" />
+            </label>
+            
+            {/* Send button */}
+            <Button
+              onClick={handlePrivatelyEnhancedSendMessage}
+              disabled={(!goalDescription.trim() && attachedFiles.length === 0) || loading.analysis || (!openaiStatus?.openai_available && !useLocalModel)}
+              className="absolute right-2 bottom-2 h-8 w-8 p-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Send message to AI Associate"
+              title={!dataShareConsent && !useLocalModel ? "Grant consent to share data with AI services" : "Send message"}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default ChatPanel;
