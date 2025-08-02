@@ -5,12 +5,12 @@
   "keywords": ["ai", "machine-learning", "react", "typescript", "express", "postgresql", "openai", "enterprise"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/rithm.git"
+    "url": "https://github.com/swellbear/rithm.git"
   },
   "author": "Your Name",
-  "homepage": "https://github.com/yourusername/rithm#readme",
+  "homepage": "https://github.com/swellbear/rithm#readme",
   "bugs": {
-    "url": "https://github.com/yourusername/rithm/issues"
+    "url": "https://github.com/swellbear/rithm/issues"
   },
   "type": "module",
   "license": "MIT",
