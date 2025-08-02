@@ -23,7 +23,7 @@ This project adheres to a code of professional conduct. By participating, you ar
 
 1. **Fork the repository**
    ```bash
-   git clone https://github.com/yourusername/rithm.git
+   git clone https://github.com/swellbear/rithm.git
    cd rithm
    ```
 
