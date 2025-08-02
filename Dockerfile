@@ -25,14 +25,14 @@ WORKDIR /app
 # Copy package files first (for better Docker layer caching)
 COPY package*.json ./
 
-# Install dependencies with legacy peer deps to resolve conflicts
-RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+# Install ALL dependencies (including dev for build)
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copy source code
 COPY . .
 
-# Build the application (if build script exists)
-RUN npm run build || echo "Build script not found, continuing..."
+# Build the application
+RUN npm run build
 
 # Create necessary directories
 RUN mkdir -p data models temp
