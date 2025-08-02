@@ -1,0 +1,57 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="300" fill="#e8f5e8"/>
+  
+  <!-- Ground line -->
+  <line x1="0" y1="250" x2="400" y2="250" stroke="#8B4513" stroke-width="2"/>
+  
+  <!-- Main platform (4ft x 6ft) -->
+  <rect x="150" y="180" width="120" height="80" fill="#4A5568" stroke="#2D3748" stroke-width="2" rx="5"/>
+  
+  <!-- Platform frame -->
+  <rect x="155" y="185" width="110" height="70" fill="none" stroke="#CBD5E0" stroke-width="1"/>
+  
+  <!-- Water tank (100 gallons) -->
+  <rect x="160" y="190" width="30" height="40" fill="#4299E1" stroke="#2B6CB0" stroke-width="1" rx="3"/>
+  <text x="175" y="235" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="#2B6CB0">100 gal</text>
+  
+  <!-- Solar panels (400W) -->
+  <rect x="200" y="190" width="60" height="25" fill="#1A202C" stroke="#4A5568" stroke-width="1" rx="2"/>
+  <g stroke="#4299E1" stroke-width="0.5">
+    <line x1="210" y1="195" x2="210" y2="210"/>
+    <line x1="220" y1="195" x2="220" y2="210"/>
+    <line x1="230" y1="195" x2="230" y2="210"/>
+    <line x1="240" y1="195" x2="240" y2="210"/>
+    <line x1="250" y1="195" x2="250" y2="210"/>
+  </g>
+  <text x="230" y="230" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" fill="#2D3748">400W Solar</text>
+  
+  <!-- Control unit -->
+  <rect x="200" y="220" width="25" height="15" fill="#E53E3E" stroke="#C53030" stroke-width="1" rx="2"/>
+  <text x="212" y="245" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#C53030">Control</text>
+  
+  <!-- Feed dispenser -->
+  <rect x="235" y="220" width="20" height="15" fill="#38A169" stroke="#2F855A" stroke-width="1" rx="2"/>
+  <text x="245" y="245" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#2F855A">Feed</text>
+  
+  <!-- Wheels (6 tires) -->
+  <circle cx="135" cy="265" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="165" cy="265" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="235" cy="265" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="265" cy="265" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="195" cy="275" r="10" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="205" cy="275" r="10" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  
+  <!-- Labels -->
+  <text x="210" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#2D3748">Starter Tier - $695</text>
+  <text x="210" y="50" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#4A5568">4ft x 6ft Platform</text>
+  <text x="210" y="65" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#4A5568">10-50 Animals</text>
+  <text x="210" y="80" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#4A5568">1,200 lbs dry + 800 lbs water</text>
+  
+  <!-- Specifications -->
+  <text x="20" y="120" font-family="Arial, sans-serif" font-size="10" fill="#2D3748">Features:</text>
+  <text x="20" y="135" font-family="Arial, sans-serif" font-size="9" fill="#4A5568">• Basic water & feed</text>
+  <text x="20" y="148" font-family="Arial, sans-serif" font-size="9" fill="#4A5568">• 400W solar system</text>
+  <text x="20" y="161" font-family="Arial, sans-serif" font-size="9" fill="#4A5568">• GPS movement</text>
+  <text x="20" y="174" font-family="Arial, sans-serif" font-size="9" fill="#4A5568">• Basic shelter</text>
+</svg>

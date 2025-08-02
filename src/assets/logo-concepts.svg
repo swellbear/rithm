@@ -1,0 +1,159 @@
+<!-- Logo Concept Collection for Rotational Grazing Platform -->
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 1: Circular Flow with Paddocks -->
+  <g id="concept1" transform="translate(50, 50)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 1: Circular Flow</text>
+    
+    <!-- Outer circle representing rotation -->
+    <circle cx="75" cy="75" r="40" fill="none" stroke="#16a34a" stroke-width="3" stroke-dasharray="5,3"/>
+    
+    <!-- Paddock sections -->
+    <rect x="45" y="45" width="20" height="20" fill="#86efac" rx="2"/>
+    <rect x="85" y="45" width="20" height="20" fill="#4ade80" rx="2"/>
+    <rect x="85" y="85" width="20" height="20" fill="#22c55e" rx="2"/>
+    <rect x="45" y="85" width="20" height="20" fill="#16a34a" rx="2"/>
+    
+    <!-- Center livestock icon -->
+    <circle cx="75" cy="75" r="8" fill="#059669"/>
+    <ellipse cx="75" cy="75" rx="4" ry="6" fill="#ffffff"/>
+    
+    <!-- Flow arrows -->
+    <path d="M 110 60 Q 115 55 120 60" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <path d="M 110 90 Q 115 95 120 90" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <!-- Concept 2: Interconnected Fields -->
+  <g id="concept2" transform="translate(250, 50)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 2: Connected Fields</text>
+    
+    <!-- Hexagonal paddocks -->
+    <polygon points="75,40 95,50 95,70 75,80 55,70 55,50" fill="#86efac" stroke="#16a34a" stroke-width="2"/>
+    <polygon points="105,65 125,75 125,95 105,105 85,95 85,75" fill="#4ade80" stroke="#16a34a" stroke-width="2"/>
+    <polygon points="45,65 65,75 65,95 45,105 25,95 25,75" fill="#22c55e" stroke="#16a34a" stroke-width="2"/>
+    
+    <!-- Connection lines -->
+    <line x1="75" y1="75" x2="95" y2="85" stroke="#2563eb" stroke-width="2"/>
+    <line x1="75" y1="75" x2="55" y2="85" stroke="#2563eb" stroke-width="2"/>
+    
+    <!-- Central hub -->
+    <circle cx="75" cy="75" r="6" fill="#1d4ed8"/>
+  </g>
+
+  <!-- Concept 3: Orbital Pattern -->
+  <g id="concept3" transform="translate(450, 50)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 3: Orbital Flow</text>
+    
+    <!-- Orbital rings -->
+    <circle cx="75" cy="75" r="35" fill="none" stroke="#16a34a" stroke-width="2" opacity="0.6"/>
+    <circle cx="75" cy="75" r="25" fill="none" stroke="#22c55e" stroke-width="2" opacity="0.8"/>
+    <circle cx="75" cy="75" r="15" fill="none" stroke="#4ade80" stroke-width="2"/>
+    
+    <!-- Livestock dots on orbits -->
+    <circle cx="110" cy="75" r="3" fill="#059669"/>
+    <circle cx="75" cy="50" r="3" fill="#059669"/>
+    <circle cx="40" cy="75" r="3" fill="#059669"/>
+    <circle cx="75" cy="100" r="3" fill="#059669"/>
+    
+    <!-- Central farm -->
+    <rect x="70" y="70" width="10" height="10" fill="#1d4ed8" rx="1"/>
+  </g>
+
+  <!-- Concept 4: Flow Arrows -->
+  <g id="concept4" transform="translate(50, 250)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 4: Dynamic Flow</text>
+    
+    <!-- Background circle -->
+    <circle cx="75" cy="75" r="40" fill="#f0f9ff" stroke="#16a34a" stroke-width="2"/>
+    
+    <!-- Curved flow paths -->
+    <path d="M 45 75 Q 75 45 105 75 Q 75 105 45 75" fill="none" stroke="#2563eb" stroke-width="3" opacity="0.8"/>
+    
+    <!-- Field segments -->
+    <path d="M 75 75 L 75 35 A 40 40 0 0 1 105 75 Z" fill="#86efac" opacity="0.7"/>
+    <path d="M 75 75 L 105 75 A 40 40 0 0 1 75 115 Z" fill="#4ade80" opacity="0.7"/>
+    <path d="M 75 75 L 75 115 A 40 40 0 0 1 45 75 Z" fill="#22c55e" opacity="0.7"/>
+    <path d="M 75 75 L 45 75 A 40 40 0 0 1 75 35 Z" fill="#16a34a" opacity="0.7"/>
+    
+    <!-- Center point -->
+    <circle cx="75" cy="75" r="4" fill="#1d4ed8"/>
+  </g>
+
+  <!-- Concept 5: Modern Geometric -->
+  <g id="concept5" transform="translate(250, 250)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 5: Geometric</text>
+    
+    <!-- Rotating squares -->
+    <rect x="55" y="55" width="40" height="40" fill="none" stroke="#16a34a" stroke-width="2" transform="rotate(0 75 75)"/>
+    <rect x="60" y="60" width="30" height="30" fill="none" stroke="#22c55e" stroke-width="2" transform="rotate(15 75 75)"/>
+    <rect x="65" y="65" width="20" height="20" fill="none" stroke="#4ade80" stroke-width="2" transform="rotate(30 75 75)"/>
+    
+    <!-- Inner diamond -->
+    <polygon points="75,60 85,75 75,90 65,75" fill="#1d4ed8"/>
+    
+    <!-- Corner indicators -->
+    <circle cx="95" cy="55" r="2" fill="#059669"/>
+    <circle cx="95" cy="95" r="2" fill="#059669"/>
+    <circle cx="55" cy="95" r="2" fill="#059669"/>
+    <circle cx="55" cy="55" r="2" fill="#059669"/>
+  </g>
+
+  <!-- Concept 6: Natural Flow -->
+  <g id="concept6" transform="translate(450, 250)">
+    <text x="75" y="20" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="bold">Concept 6: Natural Flow</text>
+    
+    <!-- Leaf-shaped paddocks -->
+    <ellipse cx="75" cy="55" rx="15" ry="8" fill="#86efac" transform="rotate(-30 75 55)"/>
+    <ellipse cx="95" cy="75" rx="15" ry="8" fill="#4ade80" transform="rotate(30 95 75)"/>
+    <ellipse cx="75" cy="95" rx="15" ry="8" fill="#22c55e" transform="rotate(150 75 95)"/>
+    <ellipse cx="55" cy="75" rx="15" ry="8" fill="#16a34a" transform="rotate(-150 55 75)"/>
+    
+    <!-- Central stem -->
+    <line x1="75" y1="75" x2="75" y2="55" stroke="#059669" stroke-width="2"/>
+    <line x1="75" y1="75" x2="95" y2="75" stroke="#059669" stroke-width="2"/>
+    <line x1="75" y1="75" x2="75" y2="95" stroke="#059669" stroke-width="2"/>
+    <line x1="75" y1="75" x2="55" y2="75" stroke="#059669" stroke-width="2"/>
+    
+    <!-- Center circle -->
+    <circle cx="75" cy="75" r="5" fill="#1d4ed8"/>
+  </g>
+
+  <!-- Icon versions (simplified for small sizes) -->
+  <g id="icon-concepts" transform="translate(50, 450)">
+    <text x="350" y="20" text-anchor="middle" fill="#2563eb" font-size="16" font-weight="bold">Icon Versions (32x32)</text>
+    
+    <!-- Icon 1: Simple rotation -->
+    <g transform="translate(50, 40)">
+      <rect x="0" y="0" width="32" height="32" fill="none" stroke="#ccc" stroke-width="1"/>
+      <circle cx="16" cy="16" r="12" fill="none" stroke="#16a34a" stroke-width="2" stroke-dasharray="3,2"/>
+      <rect x="12" y="12" width="8" height="8" fill="#1d4ed8" rx="1"/>
+      <circle cx="24" cy="8" r="1.5" fill="#059669"/>
+      <circle cx="24" cy="24" r="1.5" fill="#059669"/>
+      <circle cx="8" cy="24" r="1.5" fill="#059669"/>
+    </g>
+    
+    <!-- Icon 2: Four quadrants -->
+    <g transform="translate(120, 40)">
+      <rect x="0" y="0" width="32" height="32" fill="none" stroke="#ccc" stroke-width="1"/>
+      <rect x="6" y="6" width="8" height="8" fill="#86efac" rx="1"/>
+      <rect x="18" y="6" width="8" height="8" fill="#4ade80" rx="1"/>
+      <rect x="18" y="18" width="8" height="8" fill="#22c55e" rx="1"/>
+      <rect x="6" y="18" width="8" height="8" fill="#16a34a" rx="1"/>
+      <circle cx="16" cy="16" r="3" fill="#1d4ed8"/>
+    </g>
+    
+    <!-- Icon 3: Flowing arrow -->
+    <g transform="translate(190, 40)">
+      <rect x="0" y="0" width="32" height="32" fill="none" stroke="#ccc" stroke-width="1"/>
+      <path d="M 8 16 Q 16 8 24 16 Q 16 24 8 16" fill="none" stroke="#16a34a" stroke-width="3"/>
+      <circle cx="20" cy="12" r="2" fill="#1d4ed8"/>
+      <polygon points="24,14 28,16 24,18" fill="#059669"/>
+    </g>
+  </g>
+
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb" />
+    </marker>
+  </defs>
+</svg>
