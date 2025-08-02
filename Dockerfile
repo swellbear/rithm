@@ -1,12 +1,18 @@
-# Simple single-stage production Dockerfile
-FROM node:20-alpine
+# Production Dockerfile - Ubuntu base for better native package support
+FROM node:20-bullseye-slim
 
-# Install system dependencies for Python ML packages
-RUN apk add --no-cache \
+# Install system dependencies for native packages like canvas
+RUN apt-get update && apt-get install -y \
     python3 \
-    py3-pip \
-    build-base \
-    python3-dev
+    python3-pip \
+    build-essential \
+    python3-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
