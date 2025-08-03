@@ -53,9 +53,9 @@ RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy only necessary runtime files
-COPY server ./server
+# Copy necessary runtime files
 COPY shared ./shared
+COPY server/vite-production.ts ./server/
 
 # Create necessary directories
 RUN mkdir -p data models temp
