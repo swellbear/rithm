@@ -27,6 +27,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000, // Increase limit to 1000 kB to suppress warning
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split large dependencies into separate chunks
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+          charts: ['recharts', 'chart.js'],
+          ml: ['@tensorflow/tfjs', '@huggingface/transformers'],
+          drizzle: ['drizzle-orm', '@neondatabase/serverless'],
+          utils: ['clsx', 'class-variance-authority', 'tailwind-merge']
+        },
+      },
+    },
   },
   server: {
     fs: {
