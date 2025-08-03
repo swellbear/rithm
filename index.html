@@ -1,64 +1,19 @@
-#!/usr/bin/env node
-
-import { build } from 'esbuild';
-import { execSync } from 'child_process';
-
-async function buildProduction() {
-  try {
-    // First build the frontend with Vite
-    console.log('Building frontend with Vite...');
-    execSync('vite build', { stdio: 'inherit' });
-    
-    // Then build the server with esbuild, completely excluding Vite
-    console.log('Building server with esbuild...');
-    
-    await build({
-      entryPoints: [
-        'server/index.ts',
-        'server/vite-production.ts', 
-        'server/routes.ts',
-        'server/storage.ts',
-        'server/age-scheduler.ts'
-      ],
-      bundle: true,
-      platform: 'node',
-      format: 'esm',
-      outdir: 'dist',
-      packages: 'external', // Keep all node_modules external instead of bundling
-      external: [
-        // Node.js built-ins
-        'crypto',
-        'fs',
-        'path',
-        'url',
-        'util',
-        'buffer',
-        'stream',
-        'events',
-        'http',
-        'https',
-        'zlib',
-        'querystring',
-        // Completely exclude Vite and development dependencies
-        'vite',
-        './vite',
-        './vite.js'
-      ],
-      define: {
-        'process.env.NODE_ENV': '"production"'
-      },
-      resolveExtensions: ['.ts', '.js'],
-      loader: {
-        '.ts': 'ts'
-      }
-    });
-    
-    console.log('✅ Production build completed successfully');
-    
-  } catch (error) {
-    console.error('❌ Build failed:', error);
-    process.exit(1);
-  }
-}
-
-buildProduction();
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rithm - AI-Powered ML Platform</title>
+    <meta name="description" content="Advanced AI-powered machine learning platform with intelligent data processing, interactive model training, and comprehensive file handling across multiple domains." />
+    <meta property="og:title" content="Rithm - AI-Powered ML Platform" />
+    <meta property="og:description" content="Comprehensive ML platform with OpenAI integration, multi-format file processing, model training, and professional report generation for data science workflows." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234ade80'><path d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'/></svg>" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
+    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+  </body>
+</html>
