@@ -4,21 +4,27 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import { registerRoutes } from "./routes";
-// Conditional import to avoid bundling Vite in production
-let setupVite: any, serveStatic: any, log: any;
-if (process.env.NODE_ENV === "development") {
-  const viteModule = await import("./vite");
-  setupVite = viteModule.setupVite;
-  serveStatic = viteModule.serveStatic;
-  log = viteModule.log;
-} else {
-  const prodModule = await import("./vite-production");
-  setupVite = prodModule.setupVite;
-  serveStatic = prodModule.serveStatic;
-  log = prodModule.log;
-}
 import { ageScheduler } from "./age-scheduler";
 import { storage } from './storage';
+
+// Dynamic import function to handle Vite modules
+async function loadViteModule() {
+  if (process.env.NODE_ENV === "development") {
+    const viteModule = await import("./vite");
+    return {
+      setupVite: viteModule.setupVite,
+      serveStatic: viteModule.serveStatic,
+      log: viteModule.log
+    };
+  } else {
+    const prodModule = await import("./vite-production");
+    return {
+      setupVite: prodModule.setupVite,
+      serveStatic: prodModule.serveStatic,
+      log: prodModule.log
+    };
+  }
+}
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -52,6 +58,38 @@ passport.deserializeUser(async (id: number, done) => {
 
 // Initialize passport
 app.use(passport.initialize());
+
+// Main startup function
+async function startServer() {
+  try {
+    // Load appropriate Vite module
+    const { setupVite, serveStatic, log } = await loadViteModule();
+    
+    // Setup Vite/static serving
+    setupVite(app);
+    
+    // Register all routes
+    registerRoutes(app);
+    
+    // Setup static file serving (must be after routes)
+    serveStatic(app);
+    
+    // Start age scheduler
+    ageScheduler.start();
+    
+    const port = process.env.PORT || 5000;
+    app.listen(port, "0.0.0.0", () => {
+      log(`serving on port ${port}`);
+    });
+    
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 // Security headers middleware for development mode (production uses helmet in routes.ts)
 app.use((req, res, next) => {
@@ -142,6 +180,16 @@ app.use((req, res, next) => {
   // It is the only port that is not firewalled.
   const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   
+  // Health check endpoint for container monitoring  
+  app.get('/health', (req, res) => {
+    res.status(200).json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      env: process.env.NODE_ENV 
+    });
+  });
+
   // Start age update scheduler
   ageScheduler.start();
   
