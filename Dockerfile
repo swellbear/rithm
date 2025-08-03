@@ -55,7 +55,6 @@ COPY --from=builder /app/dist ./dist
 
 # Copy necessary runtime files
 COPY shared ./shared
-COPY server/vite-production.ts ./server/
 
 # Create necessary directories
 RUN mkdir -p data models temp
