@@ -9,8 +9,8 @@ export function log(...args: any[]) {
 }
 
 export function setupVite(app: express.Application) {
-  // In production, serve static files from dist directory
-  const distPath = path.resolve(__dirname, "../dist");
+  // In production, serve static files from dist/public directory (where Vite builds to)
+  const distPath = path.resolve(__dirname, "../dist/public");
   app.use(express.static(distPath));
   
   log("Production static files served from:", distPath);
@@ -18,7 +18,7 @@ export function setupVite(app: express.Application) {
 
 export function serveStatic(app: express.Application) {
   // Serve the built React app for all non-API routes
-  const distPath = path.resolve(__dirname, "../dist");
+  const distPath = path.resolve(__dirname, "../dist/public");
   
   app.get("*", (req, res, next) => {
     // Skip API routes
