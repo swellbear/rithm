@@ -7,23 +7,37 @@ import { registerRoutes } from "./routes";
 import { ageScheduler } from "./age-scheduler";
 import { storage } from './storage';
 
+// Simple console logging function
+function log(...args: any[]) {
+  console.log(`[${process.env.NODE_ENV}]`, ...args);
+}
+
 // Dynamic import function to handle Vite modules
 async function loadViteModule() {
   if (process.env.NODE_ENV === "development") {
-    const viteModule = await import("./vite");
-    return {
-      setupVite: viteModule.setupVite,
-      serveStatic: viteModule.serveStatic,
-      log: viteModule.log
-    };
+    try {
+      const viteModule = await import("./vite.js");
+      return {
+        setupVite: viteModule.setupVite,
+        serveStatic: viteModule.serveStatic,
+        log: viteModule.log
+      };
+    } catch (error) {
+      log("Development Vite module not found, using production module");
+      return await loadProductionModule();
+    }
   } else {
-    const prodModule = await import("./vite-production");
-    return {
-      setupVite: prodModule.setupVite,
-      serveStatic: prodModule.serveStatic,
-      log: prodModule.log
-    };
+    return await loadProductionModule();
   }
+}
+
+async function loadProductionModule() {
+  const prodModule = await import("./vite-production.js");
+  return {
+    setupVite: prodModule.setupVite,
+    serveStatic: prodModule.serveStatic,
+    log: prodModule.log || log
+  };
 }
 
 const app = express();
@@ -63,7 +77,7 @@ app.use(passport.initialize());
 async function startServer() {
   try {
     // Load appropriate Vite module
-    const { setupVite, serveStatic, log } = await loadViteModule();
+    const { setupVite, serveStatic, log: viteLog } = await loadViteModule();
     
     // Setup Vite/static serving
     setupVite(app);
@@ -77,9 +91,9 @@ async function startServer() {
     // Start age scheduler
     ageScheduler.start();
     
-    const port = process.env.PORT || 5000;
+    const port = parseInt(process.env.PORT || '5000');
     app.listen(port, "0.0.0.0", () => {
-      log(`serving on port ${port}`);
+      (viteLog || log)(`serving on port ${port}`);
     });
     
   } catch (error) {
@@ -100,7 +114,6 @@ app.use((req, res, next) => {
     // Optimized development cache headers
     res.setHeader("Cache-Control", "no-cache");
   }
-  
   next();
 });
 
