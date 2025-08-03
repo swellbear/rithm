@@ -31,6 +31,9 @@ RUN npm install --legacy-peer-deps --no-audit --no-fund
 # Copy source code
 COPY . .
 
+# Debug: Verify file structure exists  
+RUN ls -la /app && ls -la /app/src 2>/dev/null || echo "src directory not found, checking alternatives" && find /app -name "index.html" -type f | head -5
+
 # Build the application
 RUN npm run build
 
