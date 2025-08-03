@@ -29,9 +29,7 @@ import {
 import { performanceMonitor } from "./performance-monitor";
 import rithmBusinessRoutes from "./rithm-business-routes";
 import downloadRouter from "./download-models";
-import { router as mlRouter } from "./routes/ml";
-import feedbackRouter from "./routes/feedback";
-import { router as chatRouter } from "./routes/chat";
+import feedbackRouter from "./feedback-routes";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Extend Express Request type to include user property for authentication
@@ -455,19 +453,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ML Training Routes - EXPLICIT DEBUG WITH AUTH PROTECTION  
-  // Mount specific public ML endpoints before authentication
-  app.use('/api/ml/chat/analyze-query', mlRouter);
-  
-  console.log('🔧 Mounting ML router at /api/ml with authentication');
-  app.use('/api/ml', requireAuth, mlRouter);
+  // ML endpoints configured inline above with authentication
+  console.log('🔧 ML endpoints configured inline with authentication');
   
   // Feedback API Routes
   console.log('📝 Mounting Feedback router at /api/feedback');
   app.use('/api/feedback', feedbackRouter);
 
-  // Chat API Routes - Integration with rithm-chat-engine
-  console.log('💬 Mounting Chat router at /api/chat');
-  app.use('/api/chat', chatRouter);
+  // Chat endpoints configured inline above  
+  console.log('💬 Chat endpoints configured inline');
 
   // Health monitoring endpoint
   app.get('/api/health', asyncHandler(async (req, res) => {
