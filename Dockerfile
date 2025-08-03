@@ -1,7 +1,8 @@
-# Production Dockerfile - Debian 12 (bookworm) with CMake 3.25.1
-FROM node:20-bookworm-slim
+# Optimized Multi-stage Dockerfile - Production Ready
+# Stage 1: Builder (includes dev dependencies for build)
+FROM node:20-bookworm-slim AS builder
 
-# Install system dependencies - Debian 12 includes CMake 3.25.1
+# Install system dependencies for native packages
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -19,33 +20,56 @@ RUN apt-get update && apt-get install -y \
 # Update npm to latest version
 RUN npm install -g npm@latest
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first (for better Docker layer caching)
+# Copy package files and install ALL dependencies (including dev for build)
 COPY package*.json ./
-
-# Install ALL dependencies (including dev for build)
 RUN npm install --legacy-peer-deps --no-audit --no-fund
 
-# Copy source code
+# Copy source code and build the application  
 COPY . .
-
-# Debug: Verify file structure exists  
-RUN ls -la /app && ls -la /app/src 2>/dev/null || echo "src directory not found, checking alternatives" && find /app -name "index.html" -type f | head -5
 
 # Build the application
 RUN npm run build
 
+# Stage 2: Production runtime (lean image)
+FROM node:20-bookworm-slim
+
+# Install only runtime dependencies (no build tools needed)
+RUN apt-get update && apt-get install -y \
+    libcairo2 \
+    libpango-1.0-0 \
+    libjpeg62-turbo \
+    libgif7 \
+    librsvg2-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install ONLY production dependencies
+COPY package*.json ./
+RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy only necessary runtime files
+COPY server ./server
+COPY shared ./shared
+
 # Create necessary directories
 RUN mkdir -p data models temp
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=5000
 
 # Expose port
 EXPOSE 5000
 
-# Set environment variables for production
-ENV NODE_ENV=production
-ENV PORT=5000
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
 
 # Start the application
 CMD ["npm", "start"]
