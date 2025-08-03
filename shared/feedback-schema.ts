@@ -114,12 +114,13 @@ export const trainingDataSnapshots = pgTable("training_data_snapshots", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Indexes for performance
-export const algorithmSessionsIndex = index("algorithm_sessions_type_domain_idx").on(algorithmSessions.algorithmType, algorithmSessions.domain, algorithmSessions.startTime);
-export const predictionsSessionIndex = index("predictions_session_type_idx").on(algorithmPredictions.sessionId, algorithmPredictions.predictionType);
-export const resultsSessionIndex = index("results_session_completion_idx").on(actualResults.sessionId, actualResults.completionTime);
-export const performanceAlgorithmIndex = index("performance_algorithm_domain_idx").on(performanceMetrics.sessionId, performanceMetrics.accuracyPercentage);
-export const learningTypeIndex = index("learning_type_status_idx").on(learningInsights.algorithmType, learningInsights.domain, learningInsights.implementationStatus);
+// Indexes for performance - commented out to fix Docker deployment JSON parsing error
+// These can be re-enabled after deployment is working
+// export const algorithmSessionsIndex = index("algorithm_sessions_type_domain_idx").on(algorithmSessions.algorithmType, algorithmSessions.domain, algorithmSessions.startTime);
+// export const predictionsSessionIndex = index("predictions_session_type_idx").on(algorithmPredictions.sessionId, algorithmPredictions.predictionType);
+// export const resultsSessionIndex = index("results_session_completion_idx").on(actualResults.sessionId, actualResults.completionTime);
+// export const performanceAlgorithmIndex = index("performance_algorithm_domain_idx").on(performanceMetrics.sessionId, performanceMetrics.accuracyPercentage);
+// export const learningTypeIndex = index("learning_type_status_idx").on(learningInsights.algorithmType, learningInsights.domain, learningInsights.implementationStatus);
 
 // Relations
 export const algorithmSessionsRelations = relations(algorithmSessions, ({ many }) => ({
