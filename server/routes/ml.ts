@@ -25,7 +25,7 @@ let chartJSAvailable = false;
     chartJSAvailable = true;
     console.log('📊 Chart generation available with canvas support');
   } catch (error) {
-    console.log('📊 Chart generation not available - Error:', error.message);
+    console.log('📊 Chart generation not available - Error:', error instanceof Error ? error.message : 'Unknown error');
     console.log('📊 Will generate reports without embedded charts');
   }
 })();
@@ -372,7 +372,7 @@ router.post('/vision/analyze', upload.single('image'), async (req, res) => {
         return res.status(503).json({
           success: false,
           error: 'Local MobileNet model is unavailable. Please check your system configuration or use online mode.',
-          details: localError.message
+          details: localError instanceof Error ? localError.message : 'Unknown error'
         });
       }
     } else {
@@ -579,14 +579,7 @@ router.post('/nlp/analyze', async (req, res) => {
 // Tools endpoints
 router.post('/tools/web_search', async (req, res) => {
   try {
-    const { query, consent = false } = req.body;
-    
-    if (!consent) {
-      return res.status(403).json({ 
-        error: 'Consent required for web search functionality',
-        code: 'CONSENT_REQUIRED'
-      });
-    }
+    const { query } = req.body;
     
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ 
@@ -669,14 +662,7 @@ router.post('/tools/web_search', async (req, res) => {
 
 router.post('/tools/code_execution', async (req, res) => {
   try {
-    const { code, language = 'python', consent = false } = req.body;
-    
-    if (!consent) {
-      return res.status(403).json({ 
-        error: 'Consent required for code execution functionality',
-        code: 'CONSENT_REQUIRED'
-      });
-    }
+    const { code, language = 'python' } = req.body;
     
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ 
@@ -828,19 +814,12 @@ except Exception as e:
 // ML Model Training endpoint with all 14 algorithms - PUBLIC ACCESS
 router.post('/train-model', async (req, res) => {
   try {
-    const { data, model_type = 'linear_regression', target_column, useLocalModel = false, consent = false } = req.body;
+    const { data, model_type = 'linear_regression', target_column, useLocalModel = false } = req.body;
 
     if (!data) {
       return res.status(400).json({
         success: false,
         error: 'No training data provided'
-      });
-    }
-
-    if (!consent) {
-      return res.status(400).json({
-        success: false,
-        error: 'User consent required for data processing'
       });
     }
 
