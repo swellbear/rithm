@@ -123,7 +123,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Note: Health check endpoints are configured in routes.ts
+// PRODUCTION FIX: Root health check (before registerRoutes to avoid serveStatic conflicts)
+if (process.env.NODE_ENV === 'production') {
+  app.get('/', (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      port: process.env.PORT,
+      environment: 'production',
+      services: {
+        database: 'connected',
+        ml: 'active'
+      }
+    });
+  });
+  
+  app.head('/', (req: Request, res: Response) => {
+    res.status(200).end();
+  });
+}
 
 (async () => {
   const server = await registerRoutes(app);
@@ -164,9 +182,13 @@ app.use((req, res, next) => {
     port: parseInt(port), // Ensure port is a number
     host: "0.0.0.0",
   }, () => {
-    log(`✅ ML Platform Production Server running on port ${port}`);
-    log(`🌍 Environment: ${process.env.NODE_ENV || 'production'}`);
-    log(`📊 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+    // PRODUCTION FIX: Small delay to ensure port binding is detected by Render
+    setTimeout(() => {
+      log(`✅ ML Platform Production Server running on port ${port}`);
+      log(`🌍 Environment: ${process.env.NODE_ENV || 'production'}`);
+      log(`📊 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+      log(`🚀 Server ready for requests`);
+    }, process.env.NODE_ENV === 'production' ? 2000 : 100);
   }).on('error', (error: any) => {
     console.error('❌ Server startup error:', error);
     process.exit(1);
