@@ -48,23 +48,6 @@ const app = express();
 // Trust only the first proxy (Render's load balancer) to prevent ERR_ERL_PERMISSIVE_TRUST_PROXY
 app.set('trust proxy', 1);
 
-// PRODUCTION FIX: Enhanced security headers and caching for performance
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://replit.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "https:", "wss:"],
-      workerSrc: ["'self'", "blob:"],
-      frameSrc: ["'self'"]
-    }
-  },
-  crossOriginEmbedderPolicy: false
-}));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
@@ -140,6 +123,8 @@ app.use((req, res, next) => {
   next();
 });
 
+// Note: Health check endpoints are configured in routes.ts
+
 (async () => {
   const server = await registerRoutes(app);
 
@@ -165,36 +150,26 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // PRODUCTION FIX: Use Render's dynamically assigned PORT exclusively
-  // Render always sets PORT, fallback only for local development
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  // PRODUCTION FIX: Handle PORT properly for both development and production
+  const port = process.env.PORT || (process.env.NODE_ENV === 'production' ? null : 5000);
+  if (!port) {
+    console.error('❌ ERROR: PORT environment variable is not set (required in production)');
+    process.exit(1);
+  }
   
   // Start age update scheduler
   ageScheduler.start();
   
   server.listen({
-    port,
+    port: parseInt(port), // Ensure port is a number
     host: "0.0.0.0",
   }, () => {
-    log(`serving on port ${port}`);
+    log(`✅ ML Platform Production Server running on port ${port}`);
+    log(`🌍 Environment: ${process.env.NODE_ENV || 'production'}`);
+    log(`📊 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
   }).on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Trying to find an available port...`);
-      // Try alternative ports
-      const altPort = port + 1;
-      server.listen({
-        port: altPort,
-        host: "0.0.0.0",
-      }, () => {
-        log(`serving on port ${altPort} (port ${port} was busy)`);
-      }).on('error', (altError: any) => {
-        console.error(`Failed to start server on ports ${port} and ${altPort}:`, altError);
-        process.exit(1);
-      });
-    } else {
-      console.error('Server error:', error);
-      process.exit(1);
-    }
+    console.error('❌ Server startup error:', error);
+    process.exit(1);
   });
   
   // PRODUCTION FIX: Comprehensive process handlers for production deployment
