@@ -148,9 +148,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // PRODUCTION FIX: Port configuration aligned with render.yaml
-  // Production: PORT=10000 (set by Render), Development: 5000
-  const port = process.env.PORT ? parseInt(process.env.PORT) : (process.env.NODE_ENV === 'production' ? 10000 : 5000);
+  // PRODUCTION FIX: Use Render's dynamically assigned PORT exclusively
+  // Render always sets PORT, fallback only for local development
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   
   // Start age update scheduler
   ageScheduler.start();
