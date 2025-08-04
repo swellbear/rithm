@@ -54,10 +54,13 @@ export function serveStatic(app: Express) {
 
   // Catch-all handler for SPA routing - MUST be very specific to avoid capturing API routes
   app.get("*", (req, res, next) => {
-    // Skip API, health, and status routes (handled by registerRoutes)
-    if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/status') {
+    // Skip API, health, status, and debug routes (handled by registerRoutes)
+    if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/status' || req.path === '/debug') {
       return next();
     }
+
+    // CRITICAL FIX: Ensure root "/" path serves React app
+    log(`📁 Serving SPA for path: ${req.path}`);
 
     // Try dist/public/index.html first, then public/index.html
     const distIndexPath = path.join(distPath, 'index.html');
