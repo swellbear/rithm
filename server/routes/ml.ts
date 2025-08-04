@@ -1280,6 +1280,8 @@ print("=== END_RESULTS ===")
       });
 
       pythonProcess.on('close', async (code) => {
+        clearTimeout(timeoutId);
+        
         // Clean up temp file
         try {
           await fs.unlink(tempFile);
@@ -1287,10 +1289,15 @@ print("=== END_RESULTS ===")
           console.warn('Failed to clean up temp file:', cleanupError);
         }
 
+        if (responseHandled) {
+          return; // Response already sent due to timeout
+        }
+
         if (code !== 0) {
           console.error(`❌ Python process exited with code ${code}`);
           console.error('Error output:', errorOutput);
           console.error('Standard output:', output);
+          responseHandled = true;
           return res.status(500).json({
             success: false,
             error: `Training process failed with exit code ${code}`,
@@ -1309,12 +1316,14 @@ print("=== END_RESULTS ===")
               
               if (results.success) {
                 console.log(`✅ Model training completed: ${results.model_type}`);
+                responseHandled = true;
                 res.json({
                   success: true,
                   results: results
                 });
               } else {
                 console.log(`❌ Training failed: ${results.error}`);
+                responseHandled = true;
                 res.status(400).json({
                   success: false,
                   error: results.error || 'Training failed'
@@ -1322,6 +1331,7 @@ print("=== END_RESULTS ===")
               }
             } catch (parseError) {
               console.error('❌ Failed to parse training results:', parseError);
+              responseHandled = true;
               res.status(500).json({
                 success: false,
                 error: 'Failed to parse training results'
@@ -1329,6 +1339,7 @@ print("=== END_RESULTS ===")
             }
           } else {
             console.error('❌ No training results found in output');
+            responseHandled = true;
             res.status(500).json({
               success: false,
               error: 'No training results found',
@@ -1336,31 +1347,29 @@ print("=== END_RESULTS ===")
               debug_error: errorOutput
             });
           }
-        } else {
-          console.error(`❌ Python process exited with code ${code}`);
-          console.error('Error output:', errorOutput);
-          res.status(500).json({
-            success: false,
-            error: `Training process failed with exit code ${code}`,
-            details: errorOutput
-          });
         }
       });
 
       pythonProcess.on('error', (error) => {
-        console.error('❌ Failed to start Python process:', error);
-        res.status(500).json({
-          success: false,
-          error: `Failed to start training process: ${error.message}`,
-          code: 'PYTHON_PROCESS_ERROR'
-        });
+        clearTimeout(timeoutId);
+        if (!responseHandled) {
+          console.error('❌ Failed to start Python process:', error);
+          responseHandled = true;
+          res.status(500).json({
+            success: false,
+            error: `Failed to start training process: ${error.message}`,
+            code: 'PYTHON_PROCESS_ERROR'
+          });
+        }
       });
 
       // Add timeout handler
-      setTimeout(() => {
-        if (!pythonProcess.killed) {
+      let responseHandled = false;
+      const timeoutId = setTimeout(() => {
+        if (!pythonProcess.killed && !responseHandled) {
           console.error('❌ Python process timeout - killing process');
           pythonProcess.kill('SIGTERM');
+          responseHandled = true;
           res.status(408).json({
             success: false,
             error: 'Training process timed out after 2 minutes',
