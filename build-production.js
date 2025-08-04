@@ -10,15 +10,15 @@ try {
   console.log('📦 Building React frontend...');
   execSync('vite build', { stdio: 'inherit' });
   
-  // Build the production server (without dev dependencies)
+  // Build the production server (without dev dependencies) - using updated index.ts
   console.log('⚙️  Building production server...');
-  execSync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js', { stdio: 'inherit' });
+  execSync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js --define:process.env.NODE_ENV=\\"production\\"', { stdio: 'inherit' });
   
   // Copy package.json to dist
   console.log('📋 Copying package.json...');
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   
-  // Create production package.json with only actual runtime dependencies
+  // Create production package.json with only actual runtime dependencies (NO VITE)
   const runtimeDeps = [
     'express', 'passport', 'passport-local', 'bcryptjs', 'connect-pg-simple',
     'express-session', 'express-rate-limit', 'cors', 'helmet', 'multer',
@@ -26,6 +26,7 @@ try {
     'canvas', 'chart.js', 'chartjs-node-canvas', 'papaparse', 'js-yaml',
     'jszip', 'docx', 'openai', '@anthropic-ai/sdk', 'crypto-js', 'axios',
     'node-fetch', 'memorystore'
+    // NOTE: vite, @vitejs/plugin-react excluded from production
   ];
   
   const prodPackageJson = {
