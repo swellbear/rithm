@@ -1,0 +1,72 @@
+<svg width="500" height="350" viewBox="0 0 500 350" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="500" height="350" fill="#e8f5e8"/>
+  
+  <!-- Ground line -->
+  <line x1="0" y1="290" x2="500" y2="290" stroke="#8B4513" stroke-width="2"/>
+  
+  <!-- Main platform (8ft x 12ft) -->
+  <rect x="110" y="200" width="180" height="120" fill="#4A5568" stroke="#2D3748" stroke-width="2" rx="5"/>
+  
+  <!-- Platform frame -->
+  <rect x="115" y="205" width="170" height="110" fill="none" stroke="#CBD5E0" stroke-width="1"/>
+  
+  <!-- Water tanks (500 gallons - larger) -->
+  <rect x="125" y="210" width="40" height="50" fill="#4299E1" stroke="#2B6CB0" stroke-width="1" rx="3"/>
+  <rect x="170" y="210" width="40" height="50" fill="#4299E1" stroke="#2B6CB0" stroke-width="1" rx="3"/>
+  <rect x="215" y="210" width="40" height="50" fill="#4299E1" stroke="#2B6CB0" stroke-width="1" rx="3"/>
+  <text x="200" y="280" font-family="Arial, sans-serif" font-size="9" text-anchor="middle" fill="#2B6CB0">500 gallons</text>
+  
+  <!-- Solar panels (1200W - large array) -->
+  <rect x="125" y="265" width="130" height="25" fill="#1A202C" stroke="#4A5568" stroke-width="1" rx="2"/>
+  <g stroke="#4299E1" stroke-width="0.5">
+    <line x1="135" y1="270" x2="135" y2="285"/>
+    <line x1="150" y1="270" x2="150" y2="285"/>
+    <line x1="165" y1="270" x2="165" y2="285"/>
+    <line x1="180" y1="270" x2="180" y2="285"/>
+    <line x1="195" y1="270" x2="195" y2="285"/>
+    <line x1="210" y1="270" x2="210" y2="285"/>
+    <line x1="225" y1="270" x2="225" y2="285"/>
+    <line x1="240" y1="270" x2="240" y2="285"/>
+  </g>
+  <text x="190" y="305" font-family="Arial, sans-serif" font-size="9" text-anchor="middle" fill="#2D3748">1200W Solar Array</text>
+  
+  <!-- Advanced control unit -->
+  <rect x="260" y="210" width="20" height="25" fill="#E53E3E" stroke="#C53030" stroke-width="1" rx="2"/>
+  <text x="270" y="245" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#C53030">AI Control</text>
+  
+  <!-- Enhanced feed system -->
+  <rect x="260" y="240" width="20" height="20" fill="#38A169" stroke="#2F855A" stroke-width="1" rx="2"/>
+  <text x="270" y="270" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#2F855A">Auto Feed</text>
+  
+  <!-- Predator protection -->
+  <rect x="260" y="265" width="20" height="15" fill="#F56565" stroke="#E53E3E" stroke-width="1" rx="2"/>
+  <text x="270" y="290" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#E53E3E">Protection</text>
+  
+  <!-- Health monitoring -->
+  <rect x="260" y="285" width="20" height="15" fill="#9F7AEA" stroke="#805AD5" stroke-width="1" rx="2"/>
+  <text x="270" y="310" font-family="Arial, sans-serif" font-size="7" text-anchor="middle" fill="#805AD5">Health</text>
+  
+  <!-- Wheels (6 large flotation tires) -->
+  <circle cx="85" cy="315" r="22" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="130" cy="315" r="22" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="270" cy="315" r="22" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="315" cy="315" r="22" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="190" cy="325" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  <circle cx="210" cy="325" r="15" fill="#2D3748" stroke="#1A202C" stroke-width="2"/>
+  
+  <!-- Labels -->
+  <text x="250" y="35" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="#2D3748">Professional Tier - $2,850</text>
+  <text x="250" y="55" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#4A5568">8ft x 12ft Platform</text>
+  <text x="250" y="72" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#4A5568">150-300 Animals</text>
+  <text x="250" y="89" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#4A5568">2,850 lbs dry + 4,000 lbs water</text>
+  
+  <!-- Specifications -->
+  <text x="20" y="130" font-family="Arial, sans-serif" font-size="11" fill="#2D3748">Features:</text>
+  <text x="20" y="148" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• Triple water tank system</text>
+  <text x="20" y="163" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• 1200W solar array</text>
+  <text x="20" y="178" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• AI-powered control system</text>
+  <text x="20" y="193" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• Predator protection system</text>
+  <text x="20" y="208" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• Health monitoring sensors</text>
+  <text x="20" y="223" font-family="Arial, sans-serif" font-size="10" fill="#4A5568">• Large flotation tires</text>
+</svg>
