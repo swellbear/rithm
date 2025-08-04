@@ -51,8 +51,8 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Security Enhancements
-  app.set('trust proxy', true);
+  // Security Enhancements - Fix trust proxy for Render deployment
+  app.set('trust proxy', 1); // Trust only first proxy (Render's load balancer)
   
   // Security headers with helmet - X-Frame-Options and X-XSS-Protection disabled in favor of modern CSP
   app.use(helmet({
@@ -90,6 +90,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allow all standard HTTP methods
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'] // Allow standard headers
   }));
+
+  // Root endpoint for health checks (fixes HEAD / - 404 error)
+  app.get('/', (req: Request, res: Response) => {
+    res.status(200).json({ 
+      status: 'ML Platform API',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      endpoints: {
+        health: '/health',
+        api: '/api',
+        ml: '/api/ml'
+      }
+    });
+  });
+  
+  // Handle HEAD requests for health checks
+  app.head('/', (req: Request, res: Response) => {
+    res.status(200).end();
+  });
 
   // Health check endpoint for deployment monitoring
   app.get('/health', (req: Request, res: Response) => {
