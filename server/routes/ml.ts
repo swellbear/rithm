@@ -864,25 +864,39 @@ router.post('/train-model', requireAuth, async (req, res) => {
 
       // Comprehensive Python script with all 14 ML algorithms
       const pythonCode = `
+import sys
 import json
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import r2_score, mean_squared_error, accuracy_score, classification_report
-from sklearn.impute import SimpleImputer
+
+# Test imports first
+try:
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler, LabelEncoder
+    from sklearn.metrics import r2_score, mean_squared_error, accuracy_score, classification_report
+    from sklearn.impute import SimpleImputer
+    print("✅ Core sklearn imports successful")
+except ImportError as e:
+    print(f"❌ Failed to import sklearn: {e}")
+    sys.exit(1)
+
 import warnings
 warnings.filterwarnings('ignore')
 
-# All 14 ML model imports
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingRegressor, GradientBoostingClassifier
-from sklearn.svm import SVR, SVC
-from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.cluster import KMeans
-from sklearn.neural_network import MLPRegressor, MLPClassifier
+# All 14 ML model imports with error handling
+try:
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+    from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+    from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingRegressor, GradientBoostingClassifier
+    from sklearn.svm import SVR, SVC
+    from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.cluster import KMeans
+    from sklearn.neural_network import MLPRegressor, MLPClassifier
+    print("✅ All ML model imports successful")
+except ImportError as e:
+    print(f"❌ Failed to import ML models: {e}")
+    sys.exit(1)
 
 # Advanced models (with fallbacks if not available)
 try:
@@ -915,6 +929,21 @@ with open('${tempFile}', 'r') as f:
 
 df = pd.DataFrame(data_dict)
 print(f"📊 Dataset shape: {df.shape}")
+print(f"📊 Dataset columns: {list(df.columns)}")
+print(f"📊 Dataset types: {dict(df.dtypes)}")
+
+# Basic data validation
+if len(df) < 10:
+    results = {
+        "model_type": model_type,
+        "error": f"Dataset too small ({len(df)} rows). Need at least 10 rows for training.",
+        "success": False,
+        "bias_metrics": {"bias_analysis": "Dataset too small for analysis"}
+    }
+    print("=== TRAINING_RESULTS ===")
+    print(json.dumps(results))
+    print("=== END_RESULTS ===")
+    sys.exit(0)
 
 # Determine target column
 target_column = '${target_column}' if '${target_column}' else 'target'
@@ -1224,19 +1253,30 @@ print("=== END_RESULTS ===")
 `;
 
       const pythonProcess = spawn('python3', ['-c', pythonCode], {
-        timeout: 60000, // 60 second timeout for complex models
-        env: { ...process.env, PYTHONPATH: '' }
+        timeout: 120000, // 2 minute timeout for complex models
+        env: { 
+          ...process.env, 
+          PYTHONPATH: '',
+          PYTHONUNBUFFERED: '1',
+          SKLEARN_HIDE_LOADING_TIME: '1'
+        }
       });
+
+      console.log('🐍 Starting Python ML training process...');
 
       let output = '';
       let errorOutput = '';
       
       pythonProcess.stdout.on('data', (data) => {
-        output += data.toString();
+        const chunk = data.toString();
+        output += chunk;
+        console.log('🐍 Python stdout:', chunk.trim());
       });
 
       pythonProcess.stderr.on('data', (data) => {
-        errorOutput += data.toString();
+        const chunk = data.toString();
+        errorOutput += chunk;
+        console.log('🐍 Python stderr:', chunk.trim());
       });
 
       pythonProcess.on('close', async (code) => {
@@ -1311,9 +1351,23 @@ print("=== END_RESULTS ===")
         console.error('❌ Failed to start Python process:', error);
         res.status(500).json({
           success: false,
-          error: `Failed to start training process: ${error.message}`
+          error: `Failed to start training process: ${error.message}`,
+          code: 'PYTHON_PROCESS_ERROR'
         });
       });
+
+      // Add timeout handler
+      setTimeout(() => {
+        if (!pythonProcess.killed) {
+          console.error('❌ Python process timeout - killing process');
+          pythonProcess.kill('SIGTERM');
+          res.status(408).json({
+            success: false,
+            error: 'Training process timed out after 2 minutes',
+            code: 'TRAINING_TIMEOUT'
+          });
+        }
+      }, 120000);
 
     } catch (fileError) {
       console.error('❌ File operation error:', fileError);
