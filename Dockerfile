@@ -1,7 +1,7 @@
 # Multi-stage build for production deployment on Render
 FROM node:20-alpine AS builder
 
-# Install comprehensive system dependencies for all native modules
+# Install comprehensive system dependencies for all native modules (Grok-enhanced)
 RUN apk add --no-cache \
     python3 \
     py3-pip \
@@ -12,15 +12,17 @@ RUN apk add --no-cache \
     python3-dev \
     cairo-dev \
     cairo-tools \
-    jpeg-dev \
-    pango-dev \
-    musl-dev \
+    cmake \
     giflib-dev \
-    pixman-dev \
-    pangomm-dev \
+    git \
     libjpeg-turbo-dev \
+    librsvg-dev \
+    pango-dev \
+    pixman-dev \
+    pkg-config \
+    musl-dev \
+    pangomm-dev \
     freetype-dev \
-    pkgconfig \
     g++ \
     make \
     libc6-compat \
@@ -41,6 +43,9 @@ WORKDIR /app
 # Copy package files first for better Docker layer caching
 COPY package*.json ./
 
+# Update npm to latest version (Grok recommendation)
+RUN npm install -g npm@latest
+
 # Configure npm for native compilation
 RUN npm config set python ${PYTHON} && \
     npm config set build-from-source true && \
@@ -58,7 +63,7 @@ RUN npm run build
 # Production stage with runtime dependencies
 FROM node:20-alpine AS production
 
-# Install runtime dependencies for native modules
+# Install runtime dependencies for native modules (Grok-optimized)
 RUN apk add --no-cache \
     python3 \
     py3-pip \
@@ -66,11 +71,11 @@ RUN apk add --no-cache \
     py3-pandas \
     py3-scikit-learn \
     cairo \
-    jpeg \
-    pango \
     giflib \
-    pixman \
     libjpeg-turbo \
+    librsvg \
+    pango \
+    pixman \
     freetype \
     fontconfig \
     ttf-dejavu \
