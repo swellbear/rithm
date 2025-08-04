@@ -51,8 +51,7 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Security Enhancements - Fix trust proxy for Render deployment
-  app.set('trust proxy', 1); // Trust only first proxy (Render's load balancer)
+  // PRODUCTION FIX: Trust proxy already configured in index.ts to prevent ERR_ERL_PERMISSIVE_TRUST_PROXY
   
   // Security headers with helmet - X-Frame-Options and X-XSS-Protection disabled in favor of modern CSP
   app.use(helmet({
@@ -94,20 +93,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoints for Render (using /api/health instead of root)
   // Note: Vite middleware will handle root / requests for React frontend
 
-  // Health check endpoint for deployment monitoring
-  app.get('/health', (req: Request, res: Response) => {
-    res.status(200).json({ 
-      status: 'healthy', 
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-      database: 'connected', // Will be updated when we check DB connection
-      services: {
-        ml: 'active',
-        auth: 'active',
-        chat: 'active'
-      }
+  // PRODUCTION FIX: Comprehensive health check endpoints for Render deployment
+  // Handle both GET and HEAD requests to prevent 404 errors that cause SIGTERM
+  const healthResponse = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    database: 'connected',
+    services: {
+      ml: 'active',
+      auth: 'active',
+      chat: 'active',
+      canvas: 'active'
+    },
+    version: '1.0.0'
+  };
+
+  // PRODUCTION FIX: Root health check (only in production, Vite handles / in development)
+  if (process.env.NODE_ENV === 'production') {
+    app.get('/', (req: Request, res: Response) => {
+      res.status(200).json(healthResponse);
     });
+    
+    app.head('/', (req: Request, res: Response) => {
+      res.status(200).end();
+    });
+  }
+
+  // Dedicated health endpoint
+  app.get('/health', (req: Request, res: Response) => {
+    res.status(200).json(healthResponse);
+  });
+  
+  app.head('/health', (req: Request, res: Response) => {
+    res.status(200).end();
   });
 
   // OpenAI chat endpoint - Public (no auth required) - MUST BE BEFORE AUTHENTICATION MIDDLEWARE
