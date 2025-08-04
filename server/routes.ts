@@ -585,6 +585,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PRODUCTION DEBUG: Temporary debug endpoint to check file structure
   app.get('/debug', async (_req: Request, res: Response) => {
     try {
+      const fs = require('fs');
+      const path = require('path');
+      
       const distFiles = fs.existsSync(path.join(process.cwd(), 'dist')) 
         ? fs.readdirSync(path.join(process.cwd(), 'dist'))
         : [];
