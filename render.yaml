@@ -3,7 +3,11 @@ services:
     name: ml-platform
     env: node
     plan: starter
-    buildCommand: npm run build
+    buildCommand: |
+      # Install Python and ML dependencies
+      pip3 install -r python-requirements.txt
+      # Build Node.js application
+      npm run build
     startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
