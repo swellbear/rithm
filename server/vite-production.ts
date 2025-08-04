@@ -54,8 +54,8 @@ export function serveStatic(app: Express) {
 
   // Catch-all handler for SPA routing - MUST be very specific to avoid capturing API routes
   app.get("*", (req, res, next) => {
-    // Skip ALL API routes - more comprehensive check
-    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+    // Skip API, health, and root routes (handled by registerRoutes)
+    if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/') {
       return next();
     }
 
