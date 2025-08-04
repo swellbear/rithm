@@ -19,7 +19,7 @@ RUN apk add --no-cache \
     librsvg-dev \
     pango-dev \
     pixman-dev \
-    pkg-config \
+    pkgconf \
     musl-dev \
     pangomm-dev \
     freetype-dev \
