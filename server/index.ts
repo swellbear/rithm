@@ -4,44 +4,43 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import { registerRoutes } from "./routes";
-import { ageScheduler } from "./age-scheduler";
-import { storage } from './storage';
+// Production vs Development setup - no Vite imports in production bundle
+let setupVite: any, serveStatic: any, log: any;
 
-// Simple console logging function
-function log(...args: any[]) {
-  console.log(`[${process.env.NODE_ENV}]`, ...args);
-}
-
-// Dynamic import function to handle Vite modules
-async function loadViteModule() {
-  if (process.env.NODE_ENV === "production") {
-    // In production, use the production module directly
-    const prodModule = await import("./vite-production.js");
-    return {
-      setupVite: prodModule.setupVite,
-      serveStatic: prodModule.serveStatic,
-      log: prodModule.log || log
-    };
-  } else {
-    // In development, try to load Vite, fallback to production
+async function loadServerSetup() {
+  if (process.env.NODE_ENV === "development") {
     try {
-      const viteModule = await import("./vite.js");
+      const viteModule = await import("./vite");
       return {
         setupVite: viteModule.setupVite,
         serveStatic: viteModule.serveStatic,
         log: viteModule.log
       };
     } catch (error) {
-      log("Development Vite module not found, using production module");
-      const prodModule = await import("./vite-production.js");
+      console.warn('Vite module not available, falling back to production mode');
+      const prodModule = await import("./vite-production");
       return {
         setupVite: prodModule.setupVite,
         serveStatic: prodModule.serveStatic,
-        log: prodModule.log || log
+        log: prodModule.log
       };
     }
+  } else {
+    const prodModule = await import("./vite-production");
+    return {
+      setupVite: prodModule.setupVite,
+      serveStatic: prodModule.serveStatic,
+      log: prodModule.log
+    };
   }
 }
+
+const serverSetup = await loadServerSetup();
+setupVite = serverSetup.setupVite;
+serveStatic = serverSetup.serveStatic;
+log = serverSetup.log;
+import { ageScheduler } from "./age-scheduler";
+import { storage } from './storage';
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -76,38 +75,6 @@ passport.deserializeUser(async (id: number, done) => {
 // Initialize passport
 app.use(passport.initialize());
 
-// Main startup function
-async function startServer() {
-  try {
-    // Load appropriate Vite module
-    const { setupVite, serveStatic, log: viteLog } = await loadViteModule();
-    
-    // Setup Vite/static serving
-    setupVite(app);
-    
-    // Register all routes
-    registerRoutes(app);
-    
-    // Setup static file serving (must be after routes)
-    serveStatic(app);
-    
-    // Start age scheduler
-    ageScheduler.start();
-    
-    const port = parseInt(process.env.PORT || '5000');
-    app.listen(port, "0.0.0.0", () => {
-      (viteLog || log)(`serving on port ${port}`);
-    });
-    
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-}
-
-// Start the server
-startServer();
-
 // Security headers middleware for development mode (production uses helmet in routes.ts)
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== 'production') {
@@ -117,10 +84,10 @@ app.use((req, res, next) => {
     // Optimized development cache headers
     res.setHeader("Cache-Control", "no-cache");
   }
+  
   next();
 });
 
-// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -150,3 +117,60 @@ app.use((req, res, next) => {
 
   next();
 });
+
+(async () => {
+  const server = await registerRoutes(app);
+
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // Static files are handled by serveStatic() function in production
+  // Remove duplicate static file serving to prevent conflicts
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  // ALWAYS serve the app on port 5000
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  
+  // Start age update scheduler
+  ageScheduler.start();
+  
+  server.listen({
+    port,
+    host: "0.0.0.0",
+  }, () => {
+    log(`serving on port ${port}`);
+  }).on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Trying to find an available port...`);
+      // Try alternative ports
+      const altPort = port + 1;
+      server.listen({
+        port: altPort,
+        host: "0.0.0.0",
+      }, () => {
+        log(`serving on port ${altPort} (port ${port} was busy)`);
+      }).on('error', (altError: any) => {
+        console.error(`Failed to start server on ports ${port} and ${altPort}:`, altError);
+        process.exit(1);
+      });
+    } else {
+      console.error('Server error:', error);
+      process.exit(1);
+    }
+  });
+})();
