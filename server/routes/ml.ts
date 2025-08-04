@@ -873,6 +873,7 @@ router.post('/train-model', async (req, res) => {
             res.json({
               success: true,
               ...result,
+              model_type: result.algorithm,  // Map algorithm to model_type for frontend compatibility
               processing_time: '2.1s',
               authentic_ml: true
             });
