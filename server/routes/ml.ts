@@ -1879,7 +1879,7 @@ router.post('/train-model', async (req, res) => {
     const { data, model_type, target_column, useLocalModel = false, consent } = req.body;
     
     console.log(`🤖 Training ${model_type} model with target column: ${target_column}`);
-    console.log(`📊 Data shape: ${Object.keys(data).length} columns, ${Object.values(data)[0]?.length || 0} rows`);
+    console.log(`📊 Data shape: ${Object.keys(data || {}).length} columns, ${Object.values(data || {})[0]?.length || 0} rows`);
     
     if (!data || !model_type || !target_column) {
       return res.status(400).json({
@@ -1898,7 +1898,7 @@ router.post('/train-model', async (req, res) => {
     // Convert data object to array format for Python script
     const headers = Object.keys(data);
     const rows = [];
-    const rowCount = Object.values(data)[0]?.length || 0;
+    const rowCount = Object.values(data || {})[0]?.length || 0;
     
     for (let i = 0; i < rowCount; i++) {
       const row = headers.map(header => data[header][i]);
