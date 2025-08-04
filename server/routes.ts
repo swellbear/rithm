@@ -582,6 +582,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(healthData);
   }));
   
+  // PRODUCTION DEBUG: Temporary debug endpoint to check file structure
+  app.get('/debug', async (_req: Request, res: Response) => {
+    try {
+      const distFiles = fs.existsSync(path.join(process.cwd(), 'dist')) 
+        ? fs.readdirSync(path.join(process.cwd(), 'dist'))
+        : [];
+      const distPublicFiles = fs.existsSync(path.join(process.cwd(), 'dist', 'public'))
+        ? fs.readdirSync(path.join(process.cwd(), 'dist', 'public'))
+        : [];
+      
+      res.json({
+        cwd: process.cwd(),
+        distExists: fs.existsSync(path.join(process.cwd(), 'dist')),
+        distPublicExists: fs.existsSync(path.join(process.cwd(), 'dist', 'public')),
+        indexHtmlExists: fs.existsSync(path.join(process.cwd(), 'dist', 'public', 'index.html')),
+        distFiles,
+        distPublicFiles
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // PRODUCTION FIX: Streamlit proxy disabled for Render deployment
   // localhost:8501 won't work in containerized environment
   // app.use('/streamlit', createProxyMiddleware({
