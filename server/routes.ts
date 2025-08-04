@@ -113,18 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     version: '1.0.0'
   };
 
-  // PRODUCTION FIX: Root health check (only in production, Vite handles / in development)
-  if (process.env.NODE_ENV === 'production') {
-    app.get('/', (req: Request, res: Response) => {
-      res.status(200).json(healthResponse);
-    });
-    
-    app.head('/', (req: Request, res: Response) => {
-      res.status(200).end();
-    });
-  }
-
-  // Dedicated health endpoint
+  // Dedicated health endpoint (root health check moved to server/index.ts to avoid serveStatic conflicts)
   app.get('/health', (req: Request, res: Response) => {
     res.status(200).json(healthResponse);
   });
@@ -593,26 +582,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(healthData);
   }));
   
-  // Streamlit Application Proxy - Access your ML platform at /streamlit
-  app.use('/streamlit', createProxyMiddleware({
-    target: 'http://localhost:8501',
-    changeOrigin: true,
-    pathRewrite: {
-      '^/streamlit': '',
-    },
-    ws: true, // Enable WebSocket proxying for Streamlit
-    on: {
-      error: (err: any, req: any, res: any) => {
-        console.log('Streamlit proxy error:', err.message);
-        if (res instanceof require('http').ServerResponse) {
-          res.status(502).json({ 
-            error: 'Streamlit application unavailable', 
-            message: 'Please ensure Streamlit is running on port 8501' 
-          });
-        }
-      }
-    }
-  }));
+  // PRODUCTION FIX: Streamlit proxy disabled for Render deployment
+  // localhost:8501 won't work in containerized environment
+  // app.use('/streamlit', createProxyMiddleware({
+  //   target: 'http://localhost:8501',
+  //   changeOrigin: true,
+  //   pathRewrite: {
+  //     '^/streamlit': '',
+  //   },
+  //   ws: true,
+  //   on: {
+  //     error: (err: any, req: any, res: any) => {
+  //       console.log('Streamlit proxy error:', err.message);
+  //       if (res instanceof require('http').ServerResponse) {
+  //         res.status(502).json({ 
+  //           error: 'Streamlit application unavailable', 
+  //           message: 'Please ensure Streamlit is running on port 8501' 
+  //         });
+  //       }
+  //     }
+  //   }
+  // }));
   
   // Add global error handler (must be last middleware)
   app.use(globalErrorHandler);
