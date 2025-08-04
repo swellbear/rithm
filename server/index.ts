@@ -123,9 +123,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// PRODUCTION FIX: Root health check (before registerRoutes to avoid serveStatic conflicts)
+// PRODUCTION FIX: Simple health check (before registerRoutes, but NOT at root)
 if (process.env.NODE_ENV === 'production') {
-  app.get('/', (req: Request, res: Response) => {
+  app.get('/status', (req: Request, res: Response) => {
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -138,9 +138,12 @@ if (process.env.NODE_ENV === 'production') {
     });
   });
   
-  app.head('/', (req: Request, res: Response) => {
+  app.head('/status', (req: Request, res: Response) => {
     res.status(200).end();
   });
+  
+  // CRITICAL FIX: Ensure NO root route handler that could intercept "/"
+  // Remove any accidental root route handlers before static serving
 }
 
 (async () => {
