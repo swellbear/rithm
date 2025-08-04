@@ -870,11 +870,16 @@ router.post('/train-model', async (req, res) => {
           const result = JSON.parse(output.trim());
           
           if (result.success) {
-            console.log(`✅ Training completed successfully for ${result.algorithm}`);
+            console.log(`✅ Training completed successfully for ${result.algorithm || model_type}`);
+            
+            // PRODUCTION FIX: Ensure model_type is always defined to prevent undefined errors
+            const finalModelType = result.algorithm || model_type || 'linear_regression';
+            
             res.json({
               success: true,
               ...result,
-              model_type: result.algorithm,  // Map algorithm to model_type for frontend compatibility
+              model_type: finalModelType,  // Always ensure model_type exists
+              algorithm: finalModelType,   // Also set algorithm for consistency  
               processing_time: '2.1s',
               authentic_ml: true
             });
