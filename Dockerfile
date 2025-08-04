@@ -1,74 +1,57 @@
-# Optimized Multi-stage Dockerfile - Production Ready
-# Stage 1: Builder (includes dev dependencies for build)
-FROM node:20-bookworm-slim AS builder
+# Production-ready ML Platform Dockerfile
+FROM node:20-alpine AS builder
 
-# Install system dependencies for native packages
-RUN apt-get update && apt-get install -y \
+# Install system dependencies needed for building
+RUN apk add --no-cache \
     python3 \
-    python3-pip \
-    build-essential \
-    python3-dev \
-    git \
-    cmake \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    && rm -rf /var/lib/apt/lists/*
+    py3-pip \
+    build-base \
+    python3-dev
 
-# Update npm to latest version
-RUN npm install -g npm@latest
-
+# Set working directory
 WORKDIR /app
 
-# Copy package files and install ALL dependencies (including dev for build)
+# Copy package files and install all dependencies (needed for build)
 COPY package*.json ./
-RUN npm install --legacy-peer-deps --no-audit --no-fund
+RUN npm ci
 
-# Copy source code and build the application  
+# Copy source code
 COPY . .
 
 # Build the application
-RUN npm run build
+RUN node build-production.js
 
-# Stage 2: Production runtime (lean image)
-FROM node:20-bookworm-slim
+# Production stage
+FROM node:20-alpine AS production
 
-# Install only runtime dependencies (no build tools needed)
-RUN apt-get update && apt-get install -y \
-    libcairo2 \
-    libpango-1.0-0 \
-    libjpeg62-turbo \
-    libgif7 \
-    librsvg2-2 \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies for Python ML packages
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    py3-numpy \
+    py3-pandas \
+    py3-scikit-learn \
+    build-base \
+    python3-dev
 
+# Set working directory
 WORKDIR /app
-
-# Copy package files and install ONLY production dependencies
-COPY package*.json ./
-RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
-
-# Copy built artifacts from builder stage
-COPY --from=builder /app/dist ./dist
-
-# Copy necessary runtime files
-COPY shared ./shared
 
 # Create necessary directories
 RUN mkdir -p data models temp
 
-# Set production environment
-ENV NODE_ENV=production
-ENV PORT=5000
+# Copy built application from builder stage
+COPY --from=builder /app/dist/ ./
+
+# Install only production dependencies using the filtered package.json
+RUN npm install --only=production --ignore-scripts
 
 # Expose port
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+# Set environment variables for production
+ENV NODE_ENV=production
+ENV PORT=5000
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["node", "production-server.js"]
