@@ -51,6 +51,24 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
+// PRODUCTION FIX: CORS Configuration for Render deployment
+// This fixes the net::ERR_BLOCKED_BY_RESPONSE.NotSameOriginAfterDefaultedToSameOriginByCoep error
+app.use((req, res, next) => {
+  // Allow all origins for API endpoints (production requirement)
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
+
 // Passport configuration
 passport.use(new LocalStrategy(async (username, password, done) => {
   try {
@@ -172,9 +190,11 @@ if (process.env.NODE_ENV === 'production') {
   }
 
   // PRODUCTION FIX: Handle PORT properly for both development and production
-  const port = process.env.PORT || (process.env.NODE_ENV === 'production' ? null : 5000);
-  if (!port) {
-    console.error('❌ ERROR: PORT environment variable is not set (required in production)');
+  const portEnv = process.env.PORT;
+  const port = portEnv ? parseInt(portEnv, 10) : (process.env.NODE_ENV === 'production' ? null : 5000);
+  
+  if (!port || isNaN(port)) {
+    console.error('❌ ERROR: PORT environment variable is not set or invalid (required in production)');
     process.exit(1);
   }
   
@@ -182,7 +202,7 @@ if (process.env.NODE_ENV === 'production') {
   ageScheduler.start();
   
   server.listen({
-    port: parseInt(port), // Ensure port is a number
+    port: port, // Now guaranteed to be a number
     host: "0.0.0.0",
   }, () => {
     // PRODUCTION FIX: Small delay to ensure port binding is detected by Render
