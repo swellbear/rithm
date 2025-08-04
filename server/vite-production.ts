@@ -19,8 +19,8 @@ export async function setupVite(app: Express, server: any) {
 }
 
 export function serveStatic(app: Express) {
-  // PRODUCTION FIX: Serve static files from dist directory (Vite build output)
-  const distPath = path.join(process.cwd(), 'dist');
+  // PRODUCTION FIX: Serve static files from dist/public directory (Vite build output)
+  const distPath = path.join(process.cwd(), 'dist', 'public');
   const publicPath = path.join(process.cwd(), 'public');
   
   // Primary: Serve from dist directory with performance caching
@@ -59,7 +59,7 @@ export function serveStatic(app: Express) {
       return next();
     }
 
-    // Try dist/index.html first, then public/index.html
+    // Try dist/public/index.html first, then public/index.html
     const distIndexPath = path.join(distPath, 'index.html');
     const publicIndexPath = path.join(publicPath, 'index.html');
     
