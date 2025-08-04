@@ -23,13 +23,33 @@ export function serveStatic(app: Express) {
   const distPath = path.join(process.cwd(), 'dist');
   const publicPath = path.join(process.cwd(), 'public');
   
-  // Primary: Serve from dist directory (Vite build output)
+  // Primary: Serve from dist directory with performance caching
   if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    log(`✅ Serving static files from ${distPath}`);
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          // No caching for HTML to ensure fresh content
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+          // Cache static assets for 1 year
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
+    log(`✅ Serving static files from ${distPath} with performance caching`);
   } else if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
-    log(`⚠️  Fallback: Serving static files from ${publicPath}`);
+    app.use(express.static(publicPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+        }
+      }
+    }));
+    log(`⚠️  Fallback: Serving static files from ${publicPath} with caching`);
   }
 
   // Catch-all handler for SPA routing - MUST be very specific to avoid capturing API routes
