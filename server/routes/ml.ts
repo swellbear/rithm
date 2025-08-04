@@ -1873,5 +1873,128 @@ router.get('/health', (req, res) => {
   });
 });
 
+// MODEL TRAINING ENDPOINT - The missing piece!
+router.post('/train-model', async (req, res) => {
+  try {
+    const { data, model_type, target_column, useLocalModel = false, consent } = req.body;
+    
+    console.log(`🤖 Training ${model_type} model with target column: ${target_column}`);
+    console.log(`📊 Data shape: ${Object.keys(data).length} columns, ${Object.values(data)[0]?.length || 0} rows`);
+    
+    if (!data || !model_type || !target_column) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: data, model_type, and target_column are required'
+      });
+    }
+    
+    if (!consent) {
+      return res.status(400).json({
+        success: false,
+        error: 'User consent is required for model training'
+      });
+    }
+    
+    // Convert data object to array format for Python script
+    const headers = Object.keys(data);
+    const rows = [];
+    const rowCount = Object.values(data)[0]?.length || 0;
+    
+    for (let i = 0; i < rowCount; i++) {
+      const row = headers.map(header => data[header][i]);
+      rows.push(row);
+    }
+    
+    console.log(`🔍 Converted to ${rows.length} rows with ${headers.length} columns`);
+    
+    // Prepare training data
+    const trainingData = {
+      headers,
+      rows,
+      target_column,
+      model_type
+    };
+    
+    // Call Python ML trainer
+    const spawn = (await import('child_process')).spawn;
+    const path = (await import('path')).default;
+    
+    return new Promise((resolve) => {
+      const pythonProcess = spawn('python3', [
+        path.join(process.cwd(), 'server/ml/authentic-trainer.py'),
+        JSON.stringify(trainingData)
+      ]);
+      
+      let result = '';
+      let errorOutput = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        result += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        console.error('🐍 Python stderr:', data.toString());
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code === 0 && result.trim()) {
+          try {
+            const trainingResults = JSON.parse(result.trim());
+            console.log('✅ Training completed successfully:', trainingResults);
+            
+            // Return results in format frontend expects
+            resolve(res.json({
+              success: true,
+              model_type: model_type,
+              algorithm: trainingResults.algorithm || model_type,
+              accuracy: trainingResults.accuracy,
+              metrics: trainingResults.metrics,
+              feature_importance: trainingResults.feature_importance,
+              predictions: trainingResults.predictions,
+              training_time: trainingResults.training_time || '< 1s',
+              model_path: trainingResults.model_path,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (parseError) {
+            console.error('❌ Failed to parse training results:', parseError);
+            console.log('Raw Python output:', result);
+            resolve(res.status(500).json({
+              success: false,
+              error: 'Failed to parse training results',
+              details: result.substring(0, 200)
+            }));
+          }
+        } else {
+          console.error('❌ Python training failed with code:', code);
+          console.error('Error output:', errorOutput);
+          resolve(res.status(500).json({
+            success: false,
+            error: 'Model training failed',
+            details: errorOutput.substring(0, 200),
+            python_exit_code: code
+          }));
+        }
+      });
+      
+      pythonProcess.on('error', (error) => {
+        console.error('❌ Failed to spawn Python process:', error);
+        resolve(res.status(500).json({
+          success: false,
+          error: 'Failed to start training process',
+          details: error.message
+        }));
+      });
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Training endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
 export default router;
 export { router };
