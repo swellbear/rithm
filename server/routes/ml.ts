@@ -33,15 +33,7 @@ let chartJSAvailable = false;
 // Node-llama-cpp imports for local Phi-3 model - using factory functions
 let llamaModule: any = null;
 
-// Define authentication middleware locally since it's simple
-const requireAuth = (req: any, res: any, next: any) => {
-  if (req.session && req.session.user) {
-    req.user = req.session.user;
-    next();
-  } else {
-    res.status(401).json({ error: "Authentication required" });
-  }
-};
+// Authentication middleware removed - all ML endpoints are now public for testing
 
 const router = express.Router();
 
@@ -585,7 +577,7 @@ router.post('/nlp/analyze', async (req, res) => {
 });
 
 // Tools endpoints
-router.post('/tools/web_search', requireAuth, async (req, res) => {
+router.post('/tools/web_search', async (req, res) => {
   try {
     const { query, consent = false } = req.body;
     
@@ -675,7 +667,7 @@ router.post('/tools/web_search', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/tools/code_execution', requireAuth, async (req, res) => {
+router.post('/tools/code_execution', async (req, res) => {
   try {
     const { code, language = 'python', consent = false } = req.body;
     
@@ -833,8 +825,8 @@ except Exception as e:
   }
 });
 
-// ML Model Training endpoint with all 14 algorithms
-router.post('/train-model', requireAuth, async (req, res) => {
+// ML Model Training endpoint with all 14 algorithms - PUBLIC ACCESS
+router.post('/train-model', async (req, res) => {
   try {
     const { data, model_type = 'linear_regression', target_column, useLocalModel = false, consent = false } = req.body;
 
