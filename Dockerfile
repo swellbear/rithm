@@ -46,13 +46,8 @@ COPY package*.json ./
 # Update npm to latest version (Grok recommendation)
 RUN npm install -g npm@latest
 
-# Configure npm for native compilation
-RUN npm config set python ${PYTHON} && \
-    npm config set build-from-source true && \
-    npm config set canvas_binary_host_mirror https://github.com/Automattic/node-canvas/releases/download/
-
-# Install all dependencies including native modules
-RUN npm install --legacy-peer-deps --verbose
+# Install all dependencies including native modules (Python path specified for node-gyp)
+RUN npm install --legacy-peer-deps --python=/usr/bin/python3
 
 # Copy all source code
 COPY . .
