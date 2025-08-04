@@ -22,6 +22,23 @@ from sklearn.impute import SimpleImputer
 import warnings
 warnings.filterwarnings('ignore')
 
+def sanitize_for_json(obj):
+    """Convert NaN and inf values to None for JSON compatibility"""
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, (np.integer, np.floating)):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return float(obj)
+    elif isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return obj
+    else:
+        return obj
+
 class AuthenticMLTrainer:
     def __init__(self):
         self.scaler = StandardScaler()
@@ -262,7 +279,9 @@ def main():
         trainer = AuthenticMLTrainer()
         results = trainer.train_model(data, algorithm, target_column)
         
-        print(json.dumps(results))
+        # Sanitize results to handle NaN values
+        sanitized_results = sanitize_for_json(results)
+        print(json.dumps(sanitized_results))
         
     except json.JSONDecodeError as e:
         print(json.dumps({'error': f'Invalid JSON input: {str(e)}', 'success': False}))
