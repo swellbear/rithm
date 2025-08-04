@@ -91,24 +91,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'] // Allow standard headers
   }));
 
-  // Root endpoint for health checks (fixes HEAD / - 404 error)
-  app.get('/', (req: Request, res: Response) => {
-    res.status(200).json({ 
-      status: 'ML Platform API',
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      endpoints: {
-        health: '/health',
-        api: '/api',
-        ml: '/api/ml'
-      }
-    });
-  });
-  
-  // Handle HEAD requests for health checks
-  app.head('/', (req: Request, res: Response) => {
-    res.status(200).end();
-  });
+  // Health check endpoints for Render (using /api/health instead of root)
+  // Note: Vite middleware will handle root / requests for React frontend
 
   // Health check endpoint for deployment monitoring
   app.get('/health', (req: Request, res: Response) => {
