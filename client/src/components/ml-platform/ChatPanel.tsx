@@ -560,12 +560,158 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           onClick: handleWorkflowToolExecution
         }
       };
+    } else if ((lowerInput.includes('edit') && lowerInput.includes('report')) || lowerInput.includes('add conclusion') || lowerInput.includes('modify report')) {
+      // RESTORE: Edit report intent detection from your original design
+      console.log('🔄 Report editing intent detected:', input);
+      
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: input,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      setInput('');
+      setIsLoading(true);
+
+      try {
+        // Get current training results and data from store (your original approach)
+        const currentData = useAppStore.getState().mlData;
+        const currentResults = useAppStore.getState().trainingResults;
+        
+        const response = await fetch('/api/ml/edit-report', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            instruction: input,
+            currentReport: reportStructure || {},
+            data: currentData,
+            trainingResults: currentResults
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          const assistantMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.response,
+            timestamp: new Date(),
+            reportEdited: true,
+            modifiedStructure: data.modifiedStructure,
+            suggestedActions: data.suggestedActions || ['Generate updated report', 'Add more sections']
+          };
+          
+          setMessages(prev => [...prev, assistantMessage]);
+          
+          // Update report structure if provided
+          if (data.modifiedStructure && setReportStructure) {
+            setReportStructure(data.modifiedStructure);
+          }
+          
+          toast({
+            title: "Report Updated",
+            description: "Report has been edited successfully. Generate a new report to see changes.",
+          });
+        } else {
+          throw new Error(data.error || 'Report editing failed');
+        }
+      } catch (error) {
+        console.error('Report editing error:', error);
+        setError(`Report editing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `❌ Failed to edit report: ${error instanceof Error ? error.message : 'Unknown error'}. Please try rephrasing your instruction.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+      return; // Exit early for report editing (your original design)
     }
     
     // Add the node if intent was detected
     if (newNode) {
       const layouted = getLayoutedElements([...nodes, newNode], edges);
       setNodes(layouted.nodes);
+    }
+
+    // CHECK FOR REPORT EDITING INTENT
+    if (lowerInput.includes('edit') && (lowerInput.includes('report') || lowerInput.includes('add') || lowerInput.includes('modify'))) {
+      console.log('🔄 Report editing intent detected:', input);
+      
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: input,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      setInput('');
+      setIsLoading(true);
+
+      try {
+        // Get current training results and data from store
+        const currentData = useAppStore.getState().mlData;
+        const currentResults = useAppStore.getState().trainingResults;
+        
+        const response = await fetch('/api/ml/edit-report', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            instruction: input,
+            currentReport: {}, // Can be enhanced to track report structure
+            data: currentData,
+            trainingResults: currentResults
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          const assistantMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.response,
+            timestamp: new Date(),
+            reportEdited: true,
+            modifiedStructure: data.modifiedStructure,
+            suggestedActions: data.suggestedActions || ['Generate updated report', 'Add more sections']
+          };
+          
+          setMessages(prev => [...prev, assistantMessage]);
+          
+          // Show success toast
+          toast({
+            title: "Report Updated",
+            description: "Report has been edited successfully. Generate a new report to see changes.",
+          });
+        } else {
+          throw new Error(data.error || 'Report editing failed');
+        }
+      } catch (error) {
+        console.error('Report editing error:', error);
+        setError(`Report editing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `❌ Failed to edit report: ${error instanceof Error ? error.message : 'Unknown error'}. Please try rephrasing your instruction.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+      return; // Exit early for report editing
     }
 
     const userMessage: ChatMessage = {
