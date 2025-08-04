@@ -3,8 +3,9 @@ import nodePath from "path";
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
-import { registerRoutes } from "./routes.js";
-import { serveStatic, log } from "./vite-production";
+import { registerRoutes } from "./routes";
+// Production-only imports - NO VITE REFERENCES
+import { setupVite, serveStatic, log } from "./vite-production";
 import { ageScheduler } from "./age-scheduler";
 import { storage } from './storage';
 
@@ -16,7 +17,7 @@ app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 passport.use(new LocalStrategy(async (username, password, done) => {
   try {
     const user = await storage.getUserByUsername(username);
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return done(null, false, { message: 'Invalid credentials' });
     }
     return done(null, user);
@@ -41,26 +42,15 @@ passport.deserializeUser(async (id: number, done) => {
 // Initialize passport
 app.use(passport.initialize());
 
-// Production headers middleware
+// Security headers middleware for production
 app.use((req, res, next) => {
   // Production security headers
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("X-XSS-Protection", "1; mode=block");
-  
-  // Production cache headers
-  if (req.path.startsWith('/api')) {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  } else {
-    // Static assets get longer cache
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-  }
-  
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   next();
 });
 
-// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -69,61 +59,52 @@ app.use((req, res, next) => {
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+    return originalResJson.call(this, bodyJson, ...args);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      log(
+        `${req.method} ${path} ${res.statusCode} in ${duration}ms :: ${JSON.stringify(capturedJsonResponse || {}).substring(0, 100)}...`
+      );
     }
   });
 
   next();
 });
 
-(async () => {
-  // Register API routes
-  registerRoutes(app);
+// Register API routes BEFORE static middleware
+registerRoutes(app);
 
-  // Global error handler
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    console.error("Server error:", err);
-  });
-
-  // Production static file serving
-  serveStatic(app);
-
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+// Initialize server
+const server = app.listen(Number(process.env.PORT) || 5000, "0.0.0.0", async () => {
+  log(`serving on port ${process.env.PORT || 5000}`);
   
-  // Start age update scheduler
+  // Start age scheduler
   ageScheduler.start();
+  log("Age scheduler started");
   
-  const server = app.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
-  }).on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Exiting...`);
-      process.exit(1);
-    } else {
-      console.error('Server error:', error);
-      process.exit(1);
-    }
+  // Setup production static serving
+  await setupVite(app, server);
+  serveStatic(app);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  ageScheduler.stop();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-})();
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  ageScheduler.stop();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});

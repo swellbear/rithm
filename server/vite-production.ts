@@ -1,34 +1,45 @@
-import express from "express";
-import { fileURLToPath } from "url";
+import express, { type Express } from "express";
 import path from "path";
+import fs from "fs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export function log(message: string, source = "express") {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 
-export function log(...args: any[]) {
-  console.log(`[production]`, ...args);
+  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-export function setupVite(app: express.Application) {
-  // In production, serve static files from dist/public directory (where Vite builds to)
-  const distPath = path.resolve(__dirname, "../dist/public");
-  app.use(express.static(distPath));
-  
-  log("Production static files served from:", distPath);
+export async function setupVite(app: Express, server: any) {
+  // In production, we don't need Vite middleware
+  // Static files are served directly
 }
 
-export function serveStatic(app: express.Application) {
-  // Serve the built React app for all non-API routes
-  const distPath = path.resolve(__dirname, "../dist/public");
+export function serveStatic(app: Express) {
+  // Serve static files from the public directory
+  const publicPath = path.join(process.cwd(), 'public');
   
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+    log(`Serving static files from ${publicPath}`);
+  }
+
+  // Catch-all handler for SPA routing - MUST be very specific to avoid capturing API routes
   app.get("*", (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith("/api/")) {
+    // Skip ALL API routes - more comprehensive check
+    if (req.path.startsWith('/api')) {
       return next();
     }
+
+    const indexPath = path.join(publicPath, 'index.html');
     
-    // Serve index.html for all other routes (SPA routing)
-    res.sendFile(path.join(distPath, "index.html"));
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Application not built');
+    }
   });
-  
-  log("SPA routing configured for production");
 }

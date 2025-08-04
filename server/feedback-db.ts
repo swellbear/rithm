@@ -5,14 +5,11 @@ import * as feedbackSchema from "@shared/feedback-schema";
 
 neonConfig.webSocketConstructor = ws;
 
-let feedbackPool: Pool | null = null;
-let feedbackDb: any = null;
-
 if (!process.env.DATABASE_URL) {
-  console.warn("⚠️ DATABASE_URL not found - feedback features will be disabled");
-} else {
-  feedbackPool = new Pool({ connectionString: process.env.DATABASE_URL });
-  feedbackDb = drizzle({ client: feedbackPool, schema: feedbackSchema });
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
 }
 
-export { feedbackPool, feedbackDb };
+export const feedbackPool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const feedbackDb = drizzle({ client: feedbackPool, schema: feedbackSchema });

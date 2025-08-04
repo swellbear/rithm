@@ -1,55 +1,79 @@
-#!/usr/bin/env node
+import { build } from "esbuild";
+import path from "path";
+import fs from "fs";
 
-import { execSync } from 'child_process';
-import fs from 'fs';
+// Production build script that excludes Vite dependencies
+async function buildProduction() {
+  console.log("🏗️  Building production server bundle...");
+  
+  try {
+    // First, build the client with Vite
+    console.log("📦 Building client with Vite...");
+    const { execSync } = await import("child_process");
+    execSync("vite build", { stdio: "inherit" });
+    
+    // Then build the server with esbuild - bundle all dependencies except native binaries
+    console.log("⚡ Building server with esbuild...");
+    await build({
+      entryPoints: ["server/index.ts"],
+      bundle: true,
+      platform: "node",
+      target: "node20",
+      format: "cjs", // Use CommonJS to avoid dynamic import issues
+      outfile: "dist/index.js",
+      external: [
+        // Node.js built-ins - let Node.js handle these
+        "path",
+        "fs",
+        "http",
+        "https",
+        "crypto",
+        "os",
+        "child_process",
+        "util",
+        "stream",
+        "events",
+        "buffer",
+        "url",
+        "querystring",
+        "zlib",
+        // Native binary packages that can't be bundled
+        "node-llama-cpp",
+        "@node-llama-cpp/*",
+        "@reflink/*",
+        "canvas",
+        "sharp",
+        // Database client - external for proper native binding support
+        "pg",
+        "bcryptjs",
+        // All node_modules should be external and installed on server
+        "@huggingface/transformers",
+        "@tensorflow/*",
+        "onnxruntime-node"
+      ],
+      packages: "external", // External all node_modules
+      define: {
+        "process.env.NODE_ENV": '"production"'
+      },
+      sourcemap: false,
+      minify: false, // Don't minify to make debugging easier
+      treeShaking: true
+    });
+    
+    console.log("✅ Production build completed successfully!");
+    console.log("📁 Output: dist/index.js");
+    console.log("📁 Client: dist/public/");
+    
+    // Verify build output
+    const serverSize = fs.statSync("dist/index.js").size;
+    console.log(`📊 Server bundle size: ${(serverSize / 1024 / 1024).toFixed(2)} MB`);
+    
+  } catch (error) {
+    console.error("❌ Production build failed:", error);
+    process.exit(1);
+  }
+}
 
-console.log('🔧 Building ML Platform for production...');
-
-try {
-  // Build the React frontend
-  console.log('📦 Building React frontend...');
-  execSync('vite build', { stdio: 'inherit' });
-  
-  // Build the production server (without dev dependencies)
-  console.log('⚙️  Building production server...');
-  execSync('esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js --define:process.env.NODE_ENV=\\"production\\"', { stdio: 'inherit' });
-  
-  // Copy package.json to dist
-  console.log('📋 Copying package.json...');
-  const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  
-  // Create production package.json with only actual runtime dependencies (NO VITE)
-  const runtimeDeps = [
-    'express', 'passport', 'passport-local', 'bcryptjs', 'connect-pg-simple',
-    'express-session', 'express-rate-limit', 'cors', 'helmet', 'multer',
-    'drizzle-orm', '@neondatabase/serverless', 'zod', 'zod-validation-error',
-    'canvas', 'chart.js', 'chartjs-node-canvas', 'papaparse', 'js-yaml',
-    'jszip', 'docx', 'openai', '@anthropic-ai/sdk', 'crypto-js', 'axios',
-    'node-fetch', 'memorystore'
-    // NOTE: vite, @vitejs/plugin-react excluded from production
-  ];
-  
-  const prodPackageJson = {
-    name: packageJson.name,
-    version: packageJson.version,
-    type: packageJson.type,
-    license: packageJson.license,
-    dependencies: Object.fromEntries(
-      Object.entries(packageJson.dependencies).filter(([key]) => 
-        runtimeDeps.includes(key)
-      )
-    )
-  };
-  
-  fs.writeFileSync('dist/package.json', JSON.stringify(prodPackageJson, null, 2));
-  
-  console.log('✅ Production build complete!');
-  console.log('📁 Files created:');
-  console.log('   - dist/public/ (React app)');
-  console.log('   - dist/index.js (Node.js server)');
-  console.log('   - dist/package.json (production dependencies)');
-  
-} catch (error) {
-  console.error('❌ Build failed:', error.message);
-  process.exit(1);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  buildProduction();
 }

@@ -29,7 +29,9 @@ import {
 import { performanceMonitor } from "./performance-monitor";
 import rithmBusinessRoutes from "./rithm-business-routes";
 import downloadRouter from "./download-models";
-import feedbackRouter from "./feedback-routes";
+import { router as mlRouter } from "./routes/ml";
+import feedbackRouter from "./routes/feedback";
+import { router as chatRouter } from "./routes/chat";
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Extend Express Request type to include user property for authentication
@@ -161,14 +163,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log('🔧 Using memory store for sessions (reliable for all environments)');
 
   app.use(session({
-    store: sessionStore, // Will use memory store if PostgreSQL fails
+    store: sessionStore, // Use memory store for maximum reliability
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' && process.env.HTTPS !== 'false',
       httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      sameSite: 'lax' // Add sameSite for better mobile compatibility
     }
   }));
   
@@ -453,15 +456,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ML Training Routes - EXPLICIT DEBUG WITH AUTH PROTECTION  
-  // ML endpoints configured inline above with authentication
-  console.log('🔧 ML endpoints configured inline with authentication');
+  // Mount specific public ML endpoints before authentication
+  app.use('/api/ml/chat/analyze-query', mlRouter);
+  
+  console.log('🔧 Mounting ML router at /api/ml with authentication');
+  app.use('/api/ml', requireAuth, mlRouter);
   
   // Feedback API Routes
   console.log('📝 Mounting Feedback router at /api/feedback');
   app.use('/api/feedback', feedbackRouter);
 
-  // Chat endpoints configured inline above  
-  console.log('💬 Chat endpoints configured inline');
+  // Chat API Routes - Integration with rithm-chat-engine
+  console.log('💬 Mounting Chat router at /api/chat');
+  app.use('/api/chat', chatRouter);
 
   // Health monitoring endpoint
   app.get('/api/health', asyncHandler(async (req, res) => {

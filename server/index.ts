@@ -4,8 +4,41 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import { registerRoutes } from "./routes";
-// Production-only imports - NO VITE REFERENCES
-import { setupVite, serveStatic, log } from "./vite-production";
+// Production vs Development setup - no Vite imports in production bundle
+let setupVite: any, serveStatic: any, log: any;
+
+async function loadServerSetup() {
+  if (process.env.NODE_ENV === "development") {
+    try {
+      const viteModule = await import("./vite");
+      return {
+        setupVite: viteModule.setupVite,
+        serveStatic: viteModule.serveStatic,
+        log: viteModule.log
+      };
+    } catch (error) {
+      console.warn('Vite module not available, falling back to production mode');
+      const prodModule = await import("./vite-production");
+      return {
+        setupVite: prodModule.setupVite,
+        serveStatic: prodModule.serveStatic,
+        log: prodModule.log
+      };
+    }
+  } else {
+    const prodModule = await import("./vite-production");
+    return {
+      setupVite: prodModule.setupVite,
+      serveStatic: prodModule.serveStatic,
+      log: prodModule.log
+    };
+  }
+}
+
+const serverSetup = await loadServerSetup();
+setupVite = serverSetup.setupVite;
+serveStatic = serverSetup.serveStatic;
+log = serverSetup.log;
 import { ageScheduler } from "./age-scheduler";
 import { storage } from './storage';
 
@@ -42,12 +75,16 @@ passport.deserializeUser(async (id: number, done) => {
 // Initialize passport
 app.use(passport.initialize());
 
-// Security headers middleware for production
+// Security headers middleware for development mode (production uses helmet in routes.ts)
 app.use((req, res, next) => {
-  // Production security headers
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  if (process.env.NODE_ENV !== 'production') {
+    // Only essential security headers for development - CSP removed to avoid warnings
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    // Optimized development cache headers
+    res.setHeader("Cache-Control", "no-cache");
+  }
+  
   next();
 });
 
@@ -59,52 +96,81 @@ app.use((req, res, next) => {
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;
-    return originalResJson.call(this, bodyJson, ...args);
+    return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      log(
-        `${req.method} ${path} ${res.statusCode} in ${duration}ms :: ${JSON.stringify(capturedJsonResponse || {}).substring(0, 100)}...`
-      );
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
     }
   });
 
   next();
 });
 
-// Register API routes BEFORE static middleware
-registerRoutes(app);
+(async () => {
+  const server = await registerRoutes(app);
 
-// Initialize server
-const server = app.listen(Number(process.env.PORT) || 5000, "0.0.0.0", async () => {
-  log(`serving on port ${process.env.PORT || 5000}`);
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // Static files are handled by serveStatic() function in production
+  // Remove duplicate static file serving to prevent conflicts
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  // ALWAYS serve the app on port 5000
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   
-  // Start age scheduler
+  // Start age update scheduler
   ageScheduler.start();
-  log("Age scheduler started");
   
-  // Setup production static serving
-  await setupVite(app, server);
-  serveStatic(app);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  ageScheduler.stop();
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+  }, () => {
+    log(`serving on port ${port}`);
+  }).on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Trying to find an available port...`);
+      // Try alternative ports
+      const altPort = port + 1;
+      server.listen({
+        port: altPort,
+        host: "0.0.0.0",
+      }, () => {
+        log(`serving on port ${altPort} (port ${port} was busy)`);
+      }).on('error', (altError: any) => {
+        console.error(`Failed to start server on ports ${port} and ${altPort}:`, altError);
+        process.exit(1);
+      });
+    } else {
+      console.error('Server error:', error);
+      process.exit(1);
+    }
   });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  ageScheduler.stop();
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+})();
