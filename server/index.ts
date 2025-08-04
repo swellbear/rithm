@@ -43,6 +43,11 @@ import { ageScheduler } from "./age-scheduler";
 import { storage } from './storage';
 
 const app = express();
+
+// PRODUCTION FIX: Trust proxy configuration for Render deployment
+// Trust only the first proxy (Render's load balancer) to prevent ERR_ERL_PERMISSIVE_TRUST_PROXY
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
@@ -143,9 +148,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Use PORT from environment with fallback to 5000 for local development
-  // Render deployment will set PORT=10000 in production
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  // PRODUCTION FIX: Port configuration aligned with render.yaml
+  // Production: PORT=10000 (set by Render), Development: 5000
+  const port = process.env.PORT ? parseInt(process.env.PORT) : (process.env.NODE_ENV === 'production' ? 10000 : 5000);
   
   // Start age update scheduler
   ageScheduler.start();
@@ -175,12 +180,44 @@ app.use((req, res, next) => {
     }
   });
   
-  // Graceful shutdown handler for SIGTERM
+  // PRODUCTION FIX: Comprehensive process handlers for production deployment
+  // Graceful shutdown handler for SIGTERM (Render sends this on deployment/restart)
   process.on('SIGTERM', () => {
-    console.log('Received SIGTERM. Shutting down gracefully...');
+    console.log('🔄 Received SIGTERM. Shutting down gracefully...');
     server.close(() => {
-      console.log('Server closed');
+      console.log('✅ Server closed gracefully');
       process.exit(0);
     });
+    
+    // Force exit after 30 seconds if graceful shutdown fails
+    setTimeout(() => {
+      console.error('❌ Forced shutdown after timeout');
+      process.exit(1);
+    }, 30000);
+  });
+
+  // Handle SIGINT (Ctrl+C) for local development
+  process.on('SIGINT', () => {
+    console.log('🔄 Received SIGINT. Shutting down gracefully...');
+    server.close(() => {
+      console.log('✅ Server closed gracefully');
+      process.exit(0);
+    });
+  });
+
+  // Handle unhandled promise rejections to prevent crashes
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit in production, just log the error
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+  });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    // Exit gracefully even in production for uncaught exceptions
+    process.exit(1);
   });
 })();
