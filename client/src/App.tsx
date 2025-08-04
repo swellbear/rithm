@@ -306,47 +306,97 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
       console.log('📡 API response status:', response.status);
 
       if (response.ok) {
-        const result = await response.json();
-        console.log('✅ API response received:', { hasBlob: !!result.blob, hasStructure: !!result.structure });
+        // Check if response is binary (docx/pptx file) or JSON
+        const contentType = response.headers.get('content-type');
+        console.log('📡 Response content-type:', contentType);
         
-        // Set report structure if available for visual editor
-        if (result.structure) {
-          console.log('📊 Setting report structure for visual editor');
-          setReportStructure(result.structure);
+        if (contentType && contentType.includes('application/vnd.openxml')) {
+          // Handle binary response (direct .docx/.pptx file)
+          console.log('📄 Received binary document response');
+          const blob = await response.blob();
+          console.log('📄 Blob created successfully:', { size: blob.size, type: blob.type });
+          
+          const filename = `ML_Report_${new Date().toISOString().split('T')[0]}`;
+          
+          console.log('🎯 Setting preview dialog state:', { 
+            open: true, 
+            blobSize: blob.size, 
+            format: reportFormat, 
+            filename 
+          });
+          
+          setPreviewDialog({
+            open: true,
+            blob,
+            format: reportFormat,
+            filename
+          });
+          
+          console.log('🎯 Preview dialog state set - dialog should open now');
+          toast.success('Report generated successfully!');
+        } else {
+          // Handle JSON response with base64 blob
+          console.log('📄 Received JSON response with base64 data');
+          const result = await response.json();
+          console.log('✅ API response received:', { hasBlob: !!result.blob, hasStructure: !!result.structure, responseKeys: Object.keys(result) });
+          
+          // Set report structure if available for visual editor
+          if (result.structure) {
+            console.log('📊 Setting report structure for visual editor');
+            setReportStructure(result.structure);
+          }
+          
+          // Check if we have blob data
+          if (!result.blob) {
+            console.error('❌ No blob data in response:', result);
+            toast.error('Report generation failed - no document data received');
+            return;
+          }
+          
+          try {
+            // Convert base64 blob back to actual Blob with proper binary data
+            const base64Data = result.blob;
+            console.log('🔍 Base64 data length:', base64Data.length);
+            
+            const binaryString = atob(base64Data);
+            console.log('🔍 Binary string length:', binaryString.length);
+            
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            const blob = new Blob([bytes], { 
+              type: reportFormat === 'word' ? 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
+            });
+            
+            console.log('📄 Blob created successfully:', { size: blob.size, type: blob.type });
+            
+            const filename = `ML_Report_${new Date().toISOString().split('T')[0]}`;
+            
+            console.log('🎯 Setting preview dialog state:', { 
+              open: true, 
+              blobSize: blob.size, 
+              format: reportFormat, 
+              filename 
+            });
+            
+            setPreviewDialog({
+              open: true,
+              blob,
+              format: reportFormat,
+              filename
+            });
+            
+            console.log('🎯 Preview dialog state set - dialog should open now');
+            toast.success('Report generated successfully!');
+          } catch (blobError) {
+            console.error('❌ Error creating blob from base64:', blobError);
+            toast.error('Failed to process report document');
+          }
         }
-        
-        // Convert base64 blob back to actual Blob with proper binary data
-        const base64Data = result.blob || '';
-        const binaryString = atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const blob = new Blob([bytes], { 
-          type: reportFormat === 'word' ? 
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
-        });
-        
-        const filename = `ML_Report_${new Date().toISOString().split('T')[0]}`;
-        
-        console.log('🎯 Setting preview dialog state:', { 
-          open: true, 
-          blobSize: blob.size, 
-          format: reportFormat, 
-          filename 
-        });
-        
-        setPreviewDialog({
-          open: true,
-          blob,
-          format: reportFormat,
-          filename
-        });
-        
-        console.log('🎯 Preview dialog state set - dialog should open now');
-        toast.success('Report generated successfully!');
       } else {
         const result = await response.json().catch(() => ({ error: 'Network error' }));
         console.error('❌ API error:', result);
