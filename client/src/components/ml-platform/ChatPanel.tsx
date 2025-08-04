@@ -14,30 +14,47 @@ import '@xyflow/react/dist/style.css';
 import { useAppStore } from '@/store';
 import { useToast } from "@/hooks/use-toast";
 
-// Define proper types for tool node data
-interface ToolNodeData {
+// Define proper types for tool node data with all required React Flow properties
+interface ToolNodeData extends Record<string, unknown> {
   label: string;
   tool: string;
   onClick?: (tool: string) => void;
+  query?: string;
+  dataset?: string;
+  url?: string;
 }
 
-// Custom Tool Node for workflow builder with click handling
-const ToolNode = ({ data }: NodeProps<ToolNodeData>) => (
-  <div 
-    className="p-3 bg-blue-100 dark:bg-blue-900 rounded shadow border border-blue-300 dark:border-blue-700 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-    onClick={() => data.onClick?.(data.tool)}
-  >
-    <Handle type="target" position={Position.Left} className="w-2 h-2 bg-blue-500" />
-    <div className="font-medium flex items-center gap-1">
-      {data.tool === 'web_search' && <Search className="w-3 h-3" />}
-      {data.tool === 'generate_data' && <Database className="w-3 h-3" />}
-      {data.tool === 'train_model' && <Target className="w-3 h-3" />}
-      {data.label}
+// Custom Tool Node for workflow builder with click handling and website opening
+const ToolNode = ({ data }: NodeProps) => {
+  const nodeData = data as ToolNodeData;
+  
+  const handleClick = () => {
+    if (nodeData.url) {
+      // RESTORED FEATURE: Open websites in new tabs
+      window.open(nodeData.url, '_blank', 'noopener,noreferrer');
+    }
+    nodeData.onClick?.(nodeData.tool);
+  };
+
+  return (
+    <div 
+      className="p-3 bg-blue-100 dark:bg-blue-900 rounded shadow border border-blue-300 dark:border-blue-700 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+      onClick={handleClick}
+    >
+      <Handle type="target" position={Position.Left} className="w-2 h-2 bg-blue-500" />
+      <div className="font-medium flex items-center gap-1">
+        {nodeData.tool === 'web_search' && <Search className="w-3 h-3" />}
+        {nodeData.tool === 'generate_data' && <Database className="w-3 h-3" />}
+        {nodeData.tool === 'train_model' && <Target className="w-3 h-3" />}
+        {nodeData.tool === 'open_website' && <Wifi className="w-3 h-3" />}
+        {nodeData.label}
+      </div>
+      <span className="text-xs text-gray-500">{nodeData.tool}</span>
+      {nodeData.url && <span className="text-xs text-blue-500 block">🔗 Click to open</span>}
+      <Handle type="source" position={Position.Right} className="w-2 h-2 bg-blue-500" />
     </div>
-    <span className="text-xs text-gray-500">{data.tool}</span>
-    <Handle type="source" position={Position.Right} className="w-2 h-2 bg-blue-500" />
-  </div>
-);
+  );
+};
 
 // Memoized node types for React Flow to prevent unnecessary re-renders
 const nodeTypes = { tool: ToolNode };
@@ -53,6 +70,16 @@ interface ChatMessage {
   followUpQuestions?: string[];
   searchResults?: SearchResult[];
   downloadData?: any;
+  reportEdited?: boolean;
+  modifiedStructure?: any;
+  datasetRecommendations?: DatasetRecommendation[];
+}
+
+interface DatasetRecommendation {
+  name: string;
+  url: string;
+  description: string;
+  category: string;
 }
 
 interface SearchResult {
@@ -78,7 +105,7 @@ interface ChatResponse {
 }
 
 // Simple layout function for workflow nodes
-const getLayoutedElements = (nodes: Node<ToolNodeData>[], edges: Edge[]) => {
+const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   // Simple grid layout for nodes
   const layoutedNodes = nodes.map((node, index) => ({
     ...node,
@@ -109,7 +136,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<ToolNodeData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
@@ -576,7 +603,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
       try {
         // Get current training results and data from store (your original approach)
-        const currentData = useAppStore.getState().mlData;
+        const currentData = useAppStore.getState().data;
         const currentResults = useAppStore.getState().trainingResults;
         
         const response = await fetch('/api/ml/edit-report', {
@@ -658,7 +685,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
       try {
         // Get current training results and data from store
-        const currentData = useAppStore.getState().mlData;
+        const currentData = useAppStore.getState().data;
         const currentResults = useAppStore.getState().trainingResults;
         
         const response = await fetch('/api/ml/edit-report', {
@@ -725,33 +752,24 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/ml/chat/analyze-query', {
+      const response = await fetch('/api/ml/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          query: input,
-          messages: [
-            ...messages.map(msg => ({
-              role: msg.role,
-              content: msg.content
-            })),
-            {
-              role: 'user',
-              content: input
-            }
-          ],
+          message: input,
           useLocalModel,
-          consent,
-          reportStructure: (() => {
-            console.log('🔧 ChatPanel sending reportStructure:', !!reportStructure, reportStructure?.sections?.length);
-            return reportStructure;
-          })()
+          context: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
         }),
       });
 
       const data: ChatResponse = await response.json();
       
       if (data.success) {
+        // Connect to REAL backend dataset recommendations
+
         const assistantMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -760,7 +778,8 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           analysisType: data.analysisType,
           confidence: data.confidence,
           suggestedActions: data.suggestedActions,
-          followUpQuestions: data.followUpQuestions
+          followUpQuestions: data.followUpQuestions,
+          datasetRecommendations: data.datasetRecommendations
         };
 
         setMessages(prev => [...prev, assistantMessage]);
@@ -969,6 +988,34 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                                 onClick={() => handleSuggestedAction(question)}
                               >
                                 {question}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* RESTORED SOPHISTICATED FEATURE: Dataset Recommendations with New Tab Opening */}
+                        {message.datasetRecommendations && message.datasetRecommendations.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <div className="text-sm font-medium flex items-center gap-1">
+                              <Database className="w-3 h-3" />
+                              Recommended Datasets:
+                            </div>
+                            {message.datasetRecommendations.map((dataset, idx) => (
+                              <Button
+                                key={idx}
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-2 justify-start text-left w-full border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                onClick={() => window.open(dataset.url, '_blank', 'noopener,noreferrer')}
+                              >
+                                <div className="flex items-start gap-2 w-full">
+                                  <Search className="w-3 h-3 mt-0.5 text-blue-500" />
+                                  <div className="text-left flex-1">
+                                    <div className="font-medium text-blue-600 dark:text-blue-400">{dataset.name}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{dataset.description}</div>
+                                    <div className="text-xs text-blue-500 mt-1">🔗 Click to open in new tab</div>
+                                  </div>
+                                </div>
                               </Button>
                             ))}
                           </div>
