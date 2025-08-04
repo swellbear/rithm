@@ -923,6 +923,153 @@ router.post('/train-model', async (req, res) => {
   }
 });
 
+// Report generation endpoint
+router.post('/generate-report', async (req, res) => {
+  try {
+    console.log('📝 Report generation requested:', { 
+      format: req.body.format, 
+      hasData: !!req.body.data, 
+      hasTrainingResults: !!req.body.trainingResults 
+    });
+
+    const { format = 'word', data, trainingResults, consent = true } = req.body;
+
+    if (!data && !trainingResults) {
+      return res.status(400).json({
+        success: false,
+        error: 'No data or training results provided for report generation'
+      });
+    }
+
+    // Import docx for Word document generation
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell } = await import('docx');
+    
+    // Create document sections
+    const sections = [];
+    
+    // Title
+    sections.push(
+      new Paragraph({
+        text: "ML Platform Analysis Report",
+        heading: HeadingLevel.TITLE
+      })
+    );
+
+    // Executive Summary
+    sections.push(
+      new Paragraph({
+        text: "Executive Summary",
+        heading: HeadingLevel.HEADING_1
+      })
+    );
+
+    if (data) {
+      const columnCount = Object.keys(data).length;
+      const rowCount = Object.values(data)[0]?.length || 0;
+      
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `This report analyzes a dataset containing ${rowCount.toLocaleString()} records across ${columnCount} features. `,
+            })
+          ]
+        })
+      );
+    }
+
+    if (trainingResults) {
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Machine learning analysis was performed using ${trainingResults.algorithm} with R² score of ${trainingResults.r2_score?.toFixed(4) || 'N/A'} and MSE of ${trainingResults.mse?.toFixed(4) || 'N/A'}.`
+            })
+          ]
+        })
+      );
+    }
+
+    // Data Analysis Section
+    if (data) {
+      sections.push(
+        new Paragraph({
+          text: "Data Analysis",
+          heading: HeadingLevel.HEADING_1
+        })
+      );
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Dataset Overview: ${Object.keys(data).length} columns, ${Object.values(data)[0]?.length || 0} rows`
+            })
+          ]
+        })
+      );
+    }
+
+    // Training Results Section
+    if (trainingResults) {
+      sections.push(
+        new Paragraph({
+          text: "Model Training Results",
+          heading: HeadingLevel.HEADING_1
+        })
+      );
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Algorithm: ${trainingResults.algorithm || 'Unknown'}`, break: 1 }),
+            new TextRun({ text: `R² Score: ${trainingResults.r2_score?.toFixed(4) || 'N/A'}`, break: 1 }),
+            new TextRun({ text: `Mean Squared Error: ${trainingResults.mse?.toFixed(4) || 'N/A'}`, break: 1 }),
+            new TextRun({ text: `Training Samples: ${trainingResults.training_samples || 'N/A'}`, break: 1 }),
+            new TextRun({ text: `Test Samples: ${trainingResults.test_samples || 'N/A'}`, break: 1 })
+          ]
+        })
+      );
+    }
+
+    // Create document
+    const doc = new Document({
+      sections: [{
+        children: sections
+      }]
+    });
+
+    // Generate document buffer
+    const buffer = await Packer.toBuffer(doc);
+    
+    // Convert to base64 for frontend
+    const base64 = buffer.toString('base64');
+
+    console.log('✅ Report generated successfully:', { 
+      format, 
+      bufferSize: buffer.length, 
+      base64Length: base64.length 
+    });
+
+    res.json({
+      success: true,
+      blob: base64,
+      structure: {
+        title: "ML Platform Analysis Report",
+        sections: ["Executive Summary", "Data Analysis", "Model Training Results"]
+      },
+      format: format
+    });
+
+  } catch (error: any) {
+    console.error('❌ Report generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: `Report generation failed: ${error.message}`
+    });
+  }
+});
+
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.json({
