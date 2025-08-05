@@ -9,6 +9,8 @@ import ConnectPgSimple from "connect-pg-simple";
 import MemoryStore from "memorystore";
 import passport from 'passport';
 import { storage } from "./storage";
+import fs from 'fs';
+import path from 'path';
 
 import { 
   insertUser, insertBusinessQuery, insertSecCompany, insertFredIndicator, insertBusinessAnalysis, insertDomainDetection, insertApiCall,
@@ -54,9 +56,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // EMERGENCY FIX: Force root "/" to serve React app BEFORE any other routes
   if (process.env.NODE_ENV === 'production') {
-    const fs = require('fs');
-    const path = require('path');
-    
     app.get('/', (req: Request, res: Response) => {
       const distIndexPath = path.join(process.cwd(), 'dist', 'public', 'index.html');
       const publicIndexPath = path.join(process.cwd(), 'public', 'index.html');
