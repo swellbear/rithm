@@ -90,7 +90,7 @@
     "docx": "^9.5.1",
     "docx-preview": "^0.3.5",
     "drizzle-orm": "^0.33.0",
-    "drizzle-zod": "^0.7.0",
+    "drizzle-zod": "^0.5.1",
     "electron": "^37.2.4",
     "electron-builder": "^26.0.12",
     "embla-carousel-react": "^8.6.0",
