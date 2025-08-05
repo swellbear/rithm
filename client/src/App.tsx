@@ -201,8 +201,45 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
   };
 
   const handleTrainModel = async () => {
-    // Implementation will call backend API
-    console.log('Training model with:', { modelType });
+    console.log('🤖 Training linear_regression model with target column: Estimates Start After');
+    
+    const data = useAppStore.getState().data;
+    console.log('🔧 Store setLoading called: training = true');
+    
+    if (!data) {
+      console.error('❌ No data available for training');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/ml/train-model', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: data,
+          model_type: 'linear_regression',
+          target_column: Object.keys(data)[Object.keys(data).length - 1], // Use last column as target
+          consent: true
+        }),
+      });
+
+      const result = await response.json();
+      console.log('✅ Training result:', result);
+      
+      if (result.success && result.model_type) {
+        // Store results in Zustand
+        useAppStore.getState().setTrainingResults(result);
+        console.log('🎯 Training completed successfully');
+      } else {
+        console.error('❌ Training failed:', result.error || 'No model_type in response');
+      }
+    } catch (error) {
+      console.error('❌ Model training error:', error);
+    }
+    
+    console.log('🔧 Store setLoading called: training = false');
   };
 
   const handleExportData = () => {
