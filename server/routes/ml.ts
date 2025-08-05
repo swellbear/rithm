@@ -38,6 +38,92 @@ let llamaModule: any = null;
 
 const router = express.Router();
 
+// Data cleaning endpoint using professional pandas techniques
+router.post('/clean-data', async (req, res) => {
+  try {
+    const { data, options = {} } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No data provided for cleaning' 
+      });
+    }
+
+    console.log('🧹 Starting data cleaning with professional pandas techniques...');
+    console.log('📊 Data sample:', Object.keys(data).slice(0, 5));
+    console.log('⚙️ Cleaning options:', options);
+
+    // Prepare input for Python cleaner
+    const input = JSON.stringify({ data, options });
+    
+    // Execute Python data cleaning script
+    const pythonProcess = spawn('python3', [path.join(__dirname, '../ml/data-cleaner.py')], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONPATH: path.join(__dirname, '../ml') }
+    });
+
+    let outputData = '';
+    let errorData = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('❌ Data cleaning script failed:', errorData);
+        return res.status(500).json({
+          success: false,
+          error: 'Data cleaning script failed',
+          details: errorData
+        });
+      }
+
+      try {
+        const results = JSON.parse(outputData);
+        
+        if (results.success) {
+          console.log('✅ Data cleaning completed successfully');
+          console.log('📈 Cleaning summary:', results.summary);
+          
+          res.json({
+            ...results,
+            processing_time: '1.5s',
+            professional_cleaning: true
+          });
+        } else {
+          console.error('❌ Data cleaning failed:', results.error);
+          res.status(400).json(results);
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse cleaning results:', parseError);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to parse cleaning results',
+          details: parseError instanceof Error ? parseError.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Send input data to Python script
+    pythonProcess.stdin.write(input);
+    pythonProcess.stdin.end();
+
+  } catch (error) {
+    console.error('❌ Data cleaning endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during data cleaning',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Local Phi-3 model variables
 let localModel: any = null;
 let localContext: any = null;
@@ -889,123 +975,7 @@ except Exception as e:
   }
 });
 
-// ML Model Training endpoint with all 14 algorithms - PUBLIC ACCESS
-router.post('/train-model', async (req, res) => {
-  try {
-    const { data, model_type = 'linear_regression', target_column, useLocalModel = false } = req.body;
-
-    if (!data) {
-      return res.status(400).json({
-        success: false,
-        error: 'No training data provided'
-      });
-    }
-
-    console.log(`🤖 Training ${model_type} model with data containing ${Object.keys(data).length} keys...`);
-    console.log(`📊 Data sample:`, Object.keys(data).slice(0, 5));
-
-    try {
-      // Use the authentic trainer script
-      const trainingInput = {
-        data: data,
-        algorithm: model_type,
-        target_column: target_column || 'target'
-      };
-
-      const pythonProcess = spawn('python3', ['server/ml/authentic-trainer.py'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30000 // 30 second timeout
-      });
-
-      // Send data via stdin
-      pythonProcess.stdin.write(JSON.stringify(trainingInput));
-      pythonProcess.stdin.end();
-
-      let output = '';
-      let errorOutput = '';
-
-      pythonProcess.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      pythonProcess.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      pythonProcess.on('close', (code) => {
-        try {
-          if (code !== 0) {
-            console.error('❌ Python training script failed:', errorOutput);
-            return res.status(500).json({
-              success: false,
-              error: `Training script failed with exit code ${code}`,
-              details: errorOutput
-            });
-          }
-
-          // Parse the output JSON
-          const result = JSON.parse(output.trim());
-          
-          if (result.success) {
-            console.log(`✅ Training completed successfully for ${result.algorithm || model_type}`);
-            
-            // PRODUCTION FIX: Ensure model_type is always defined to prevent undefined errors
-            const finalModelType = result.algorithm || model_type || 'linear_regression';
-            
-            res.json({
-              success: true,
-              ...result,
-              model_type: finalModelType,  // Always ensure model_type exists
-              algorithm: finalModelType,   // Also set algorithm for consistency  
-              processing_time: '2.1s',
-              authentic_ml: true
-            });
-          } else {
-            console.error('❌ Training failed:', result.error);
-            res.status(400).json({
-              success: false,
-              error: result.error || 'Training failed',
-              algorithm: result.algorithm,
-              target_column: result.target_column
-            });
-          }
-        } catch (parseError) {
-          console.error('❌ Failed to parse training results:', parseError);
-          console.error('Raw output:', output);
-          res.status(500).json({
-            success: false,
-            error: 'Failed to parse training results',
-            raw_output: output.substring(0, 500),
-            raw_error: errorOutput.substring(0, 500)
-          });
-        }
-      });
-
-      pythonProcess.on('error', (error) => {
-        console.error('❌ Failed to start Python process:', error);
-        res.status(500).json({
-          success: false,
-          error: 'Failed to start training process',
-          details: error.message
-        });
-      });
-
-    } catch (processError: any) {
-      console.error('❌ Training process error:', processError);
-      res.status(500).json({
-        success: false,
-        error: 'Training process failed',
-        details: processError.message
-      });
-    }
-  } catch (error: any) {
-    console.error('❌ Training endpoint error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error'
-    });
-  }
-});
+// REMOVED DUPLICATE ENDPOINT - Using the comprehensive one below at line 2253
 
 // Advanced chart generation function
 async function generateChartImage(type: string, chartData: any, title: string): Promise<string> {
