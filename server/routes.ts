@@ -51,6 +51,30 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  
+  // EMERGENCY FIX: Force root "/" to serve React app BEFORE any other routes
+  if (process.env.NODE_ENV === 'production') {
+    const fs = require('fs');
+    const path = require('path');
+    
+    app.get('/', (req: Request, res: Response) => {
+      const distIndexPath = path.join(process.cwd(), 'dist', 'public', 'index.html');
+      const publicIndexPath = path.join(process.cwd(), 'public', 'index.html');
+      
+      if (fs.existsSync(distIndexPath)) {
+        res.sendFile(distIndexPath);
+      } else if (fs.existsSync(publicIndexPath)) {
+        res.sendFile(publicIndexPath);
+      } else {
+        res.status(404).json({
+          error: 'React app not found',
+          message: 'Frontend build missing. Run npm run build.',
+          paths_checked: [distIndexPath, publicIndexPath]
+        });
+      }
+    });
+  }
+  
   // PRODUCTION FIX: Trust proxy already configured in index.ts to prevent ERR_ERL_PERMISSIVE_TRUST_PROXY
   
   // Security headers with helmet - X-Frame-Options and X-XSS-Protection disabled in favor of modern CSP
