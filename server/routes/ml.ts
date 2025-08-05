@@ -2,10 +2,15 @@ import express from 'express';
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import axios from 'axios';
 import OpenAI from 'openai';
 import { faker } from '@faker-js/faker';
 import multer from 'multer';
+
+// ES module compatibility
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, AlignmentType, ImageRun } from 'docx';
 import PptxGenJS from 'pptxgenjs';
@@ -2175,14 +2180,30 @@ router.post('/train-model', async (req, res) => {
       model_type
     };
     
-    // Call Python ML trainer
+    // Call Python ML trainer using file-based data transfer
     const spawn = (await import('child_process')).spawn;
     const path = (await import('path')).default;
+    const os = (await import('os')).default;
+    
+    // Write training data to temporary file to avoid E2BIG error
+    const tempFile = path.join(os.tmpdir(), `training_data_${Date.now()}.json`);
+    
+    try {
+      await fs.writeFile(tempFile, JSON.stringify(trainingData));
+      console.log(`📄 Training data written to temporary file: ${tempFile}`);
+    } catch (fileError) {
+      console.error('❌ Failed to write training data to file:', fileError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to prepare training data',
+        details: fileError instanceof Error ? fileError.message : 'Unknown error'
+      });
+    }
     
     return new Promise((resolve) => {
       const pythonProcess = spawn('python3', [
         path.join(process.cwd(), 'server/ml/authentic-trainer.py'),
-        JSON.stringify(trainingData)
+        tempFile  // Pass file path instead of data
       ]);
       
       let result = '';
@@ -2197,7 +2218,15 @@ router.post('/train-model', async (req, res) => {
         console.error('🐍 Python stderr:', data.toString());
       });
       
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', async (code) => {
+        // Clean up temporary file
+        try {
+          await fs.unlink(tempFile);
+          console.log(`🗑️ Cleaned up temporary file: ${tempFile}`);
+        } catch (cleanupError) {
+          console.warn('⚠️ Failed to clean up temporary file:', cleanupError);
+        }
+        
         if (code === 0 && result.trim()) {
           try {
             const trainingResults = JSON.parse(result.trim());
