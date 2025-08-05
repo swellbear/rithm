@@ -9,9 +9,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Upload, Play, Download, Settings, Loader2, HardDrive, BarChart3, MessageSquare, Eye, Mic, FileText, Brain, Target } from 'lucide-react';
+import { Database, Upload, Play, Download, Settings, Loader2, HardDrive, BarChart3, MessageSquare, Eye, Mic, FileText, Brain, Target, Sparkles, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea";
-import { MLData, modelDescriptions, NLPResults, VisionResults, SpeechResults, Project } from './types';
+import { MLData, modelDescriptions, NLPResults, VisionResults, SpeechResults, Project, CleaningOptions, CleaningResults } from './types';
 import DataVisualization from './DataVisualization';
 import ProjectList from './ProjectList';
 
@@ -138,6 +138,21 @@ export default function DataManagementPanel({
   const [visionImage, setVisionImage] = useState<File | null>(null);
   const [visionImageUrl, setVisionImageUrl] = useState<string>('');
   const [speechAudio, setSpeechAudio] = useState<File | null>(null);
+  
+  // Data cleaning state
+  const [cleaningOptions, setCleaningOptions] = useState<CleaningOptions>({
+    clean_column_names: true,
+    handle_missing: true,
+    missing_strategy: 'smart',
+    convert_types: true,
+    force_numeric: true,
+    handle_outliers: true,
+    outlier_method: 'iqr',
+    remove_duplicates: true,
+    encode_categorical: false
+  });
+  const [cleaningResults, setCleaningResults] = useState<CleaningResults | null>(null);
+  const [isDataCleaned, setIsDataCleaned] = useState(false);
 
   // Privacy consent check helper
   const checkConsentAndWarn = (action: string): boolean => {
@@ -224,6 +239,12 @@ export default function DataManagementPanel({
       }
 
       console.log(`🤖 Training ${modelType} model with target column: ${targetColumn}`);
+      console.log('🔍 Request data:', { 
+        dataKeys: Object.keys(data), 
+        dataLength: Object.values(data)[0]?.length || 0,
+        modelType, 
+        targetColumn 
+      });
 
       // Enhanced API call with correct parameter names
       const response = await fetch('/api/ml/train-model', {
@@ -241,16 +262,20 @@ export default function DataManagementPanel({
       
       if (response.ok) {
         const result = await response.json();
-        if (result.success) {
-          // Update store with training results
-          setTrainingResults(result.results);
+        console.log('✅ Training response received:', result);
+        
+        // Validate response structure before accessing properties
+        if (result && result.success && result.model_type) {
+          // Update store with training results - backend returns data directly, not nested in results
+          setTrainingResults(result);
           toast({
             title: "Model Training Complete",
-            description: `${result.results.model_type} model trained successfully!`,
+            description: `${result.algorithm || result.model_type} model trained successfully!`,
             variant: "default"
           });
         } else {
-          setError(result.error || 'Training failed');
+          console.error('❌ Training failed - invalid response structure:', result);
+          setError(result?.error || 'Training failed - invalid response structure');
         }
       } else if (response.status === 401) {
         // Handle authentication error with helpful guidance
@@ -262,6 +287,11 @@ export default function DataManagementPanel({
         setError('Authentication required. Please log in to use model training.');
       } else {
         const errorResult = await response.json().catch(() => ({ error: 'Network error' }));
+        console.error('🚨 Training failed with response:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorResult
+        });
         setError(errorResult.error || `Server error: ${response.status}`);
         toast({
           title: "Training Failed",
@@ -271,7 +301,12 @@ export default function DataManagementPanel({
       }
     } catch (error: any) {
       console.error('Model training error:', error);
-      setError('Model training failed completely.');
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      setError(`Model training failed: ${error.message || 'Network or request error'}`);
     } finally {
       setLoading('training', false);
     }
@@ -373,6 +408,70 @@ export default function DataManagementPanel({
       setLoading('speech', false);
     }
   };
+
+  // Professional data cleaning handler using state-of-the-art pandas techniques
+  const handleCleanData = async () => {
+    if (!data || Object.keys(data).length === 0) {
+      toast({
+        title: "No Data to Clean",
+        description: "Please upload data first before cleaning.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading('data', true);
+    try {
+      console.log('🧹 Starting professional data cleaning...');
+      
+      const response = await fetch('/api/ml/clean-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          data,
+          options: cleaningOptions
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Data cleaning failed: ${response.status}`);
+      }
+
+      const results: CleaningResults = await response.json();
+      
+      if (results.success && results.cleaned_data) {
+        setCleaningResults(results);
+        setData(results.cleaned_data);  // Update data with cleaned version
+        setIsDataCleaned(true);
+        
+        const summary = results.summary;
+        toast({
+          title: "Data Cleaned Successfully",
+          description: `✅ Professional cleaning completed: ${summary?.operations_count} operations performed`,
+          duration: 5000
+        });
+        
+        console.log('✅ Data cleaning completed:', summary);
+      } else {
+        throw new Error(results.error || 'Data cleaning failed');
+      }
+    } catch (error) {
+      console.error('❌ Data cleaning error:', error);
+      toast({
+        title: "Data Cleaning Failed",
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: "destructive"
+      });
+    } finally {
+      setLoading('data', false);
+    }
+  };
+
+  // Reset cleaning state when new data is uploaded
+  React.useEffect(() => {
+    setIsDataCleaned(false);
+    setCleaningResults(null);
+  }, [data]);
   return (
     <>
       {loading.data ? (
@@ -418,6 +517,15 @@ export default function DataManagementPanel({
                 >
                   <Database className="h-5 w-5 mb-1" />
                   <span className="text-xs">Data</span>
+                </Button>
+                <Button 
+                  variant={activeSection === 'clean' ? 'default' : 'ghost'} 
+                  className="flex-col h-auto py-2"
+                  onClick={() => setActiveSection('clean')}
+                  disabled={!data || Object.keys(data).length === 0}
+                >
+                  <Sparkles className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Clean</span>
                 </Button>
                 <Button 
                   variant={activeSection === 'projects' ? 'default' : 'ghost'} 
@@ -593,6 +701,230 @@ export default function DataManagementPanel({
                         {useLocalModelFromStore ? "Generate Data (Local)" : "Generate Data"}
                       </Button>
                     </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Professional Data Cleaning Section */}
+              {activeSection === 'clean' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Professional Data Cleaning</h3>
+                    {isDataCleaned && <CheckCircle className="h-5 w-5 text-green-600" />}
+                  </div>
+                  
+                  {cleaningResults && (
+                    <Card className="mb-4 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                      <CardContent className="pt-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="font-medium text-green-800 dark:text-green-200">Data Successfully Cleaned</span>
+                        </div>
+                        <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
+                          <p>Original: {cleaningResults.summary?.original_rows} rows × {cleaningResults.summary?.original_columns} columns</p>
+                          <p>Final: {cleaningResults.summary?.final_rows} rows × {cleaningResults.summary?.final_columns} columns</p>
+                          <p>Operations: {cleaningResults.summary?.operations_count} cleaning operations performed</p>
+                          <p>Issues Found: {cleaningResults.summary?.issues_found} data quality issues detected</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  <Accordion type="single" collapsible defaultValue="basic">
+                    <AccordionItem value="basic">
+                      <AccordionTrigger>Basic Cleaning Options</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="clean-columns"
+                              checked={cleaningOptions.clean_column_names || false}
+                              onCheckedChange={(checked) => 
+                                setCleaningOptions(prev => ({ ...prev, clean_column_names: checked }))
+                              }
+                            />
+                            <label htmlFor="clean-columns" className="text-sm font-medium">
+                              Clean Column Names
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="remove-duplicates"
+                              checked={cleaningOptions.remove_duplicates || false}
+                              onCheckedChange={(checked) => 
+                                setCleaningOptions(prev => ({ ...prev, remove_duplicates: checked }))
+                              }
+                            />
+                            <label htmlFor="remove-duplicates" className="text-sm font-medium">
+                              Remove Duplicates
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="convert-types"
+                              checked={cleaningOptions.convert_types || false}
+                              onCheckedChange={(checked) => 
+                                setCleaningOptions(prev => ({ ...prev, convert_types: checked }))
+                              }
+                            />
+                            <label htmlFor="convert-types" className="text-sm font-medium">
+                              Auto Convert Types
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="force-numeric"
+                              checked={cleaningOptions.force_numeric || false}
+                              onCheckedChange={(checked) => 
+                                setCleaningOptions(prev => ({ ...prev, force_numeric: checked }))
+                              }
+                            />
+                            <label htmlFor="force-numeric" className="text-sm font-medium">
+                              Force Numeric Conversion
+                            </label>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="missing">
+                      <AccordionTrigger>Missing Values</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="handle-missing"
+                            checked={cleaningOptions.handle_missing || false}
+                            onCheckedChange={(checked) => 
+                              setCleaningOptions(prev => ({ ...prev, handle_missing: checked }))
+                            }
+                          />
+                          <label htmlFor="handle-missing" className="text-sm font-medium">
+                            Handle Missing Values
+                          </label>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Missing Value Strategy</label>
+                          <Select
+                            value={cleaningOptions.missing_strategy || 'smart'}
+                            onValueChange={(value: 'smart' | 'mean' | 'median' | 'zero' | 'mode') => 
+                              setCleaningOptions(prev => ({ ...prev, missing_strategy: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="smart">Smart (KNN + Median/Mode)</SelectItem>
+                              <SelectItem value="mean">Mean Imputation</SelectItem>
+                              <SelectItem value="median">Median Imputation</SelectItem>
+                              <SelectItem value="zero">Fill with Zero</SelectItem>
+                              <SelectItem value="mode">Mode Imputation</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="outliers">
+                      <AccordionTrigger>Outlier Handling</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="handle-outliers"
+                            checked={cleaningOptions.handle_outliers || false}
+                            onCheckedChange={(checked) => 
+                              setCleaningOptions(prev => ({ ...prev, handle_outliers: checked }))
+                            }
+                          />
+                          <label htmlFor="handle-outliers" className="text-sm font-medium">
+                            Handle Outliers
+                          </label>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Outlier Detection Method</label>
+                          <Select
+                            value={cleaningOptions.outlier_method || 'iqr'}
+                            onValueChange={(value: 'iqr' | 'zscore') => 
+                              setCleaningOptions(prev => ({ ...prev, outlier_method: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="iqr">IQR Method (1.5 * IQR)</SelectItem>
+                              <SelectItem value="zscore">Z-Score Method (3σ)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="advanced">
+                      <AccordionTrigger>Advanced Options</AccordionTrigger>
+                      <AccordionContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="encode-categorical"
+                            checked={cleaningOptions.encode_categorical || false}
+                            onCheckedChange={(checked) => 
+                              setCleaningOptions(prev => ({ ...prev, encode_categorical: checked }))
+                            }
+                          />
+                          <label htmlFor="encode-categorical" className="text-sm font-medium">
+                            Encode Categorical Variables
+                          </label>
+                        </div>
+                        
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+                            <div className="text-sm text-blue-800 dark:text-blue-200">
+                              <p className="font-medium mb-1">Professional Data Cleaning</p>
+                              <p>Using industry-standard pandas techniques: KNN imputation, IQR outlier detection, smart type conversion, and statistical validation.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <Button 
+                      onClick={handleCleanData}
+                      disabled={loading.data || !data || Object.keys(data).length === 0}
+                      className="flex-1"
+                    >
+                      {loading.data ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Cleaning Data...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Clean Data
+                        </>
+                      )}
+                    </Button>
+                    
+                    {cleaningResults && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          const details = cleaningResults.cleaning_report?.operations_performed.join('\n') || 'No operations performed';
+                          alert(`Cleaning Report:\n\n${details}`);
+                        }}
+                      >
+                        View Report
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
