@@ -511,4 +511,48 @@ def main():
         sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    try:
+        # Handle input from file path, command line argument, or stdin
+        if len(sys.argv) > 1:
+            arg = sys.argv[1]
+            # Check if argument is a file path
+            if arg.startswith('/') or arg.startswith('./') or arg.endswith('.json'):
+                # Read data from file
+                with open(arg, 'r') as f:
+                    input_data = json.load(f)
+            else:
+                # Data passed as command line argument (legacy support)
+                input_data = json.loads(arg)
+        else:
+            # Data passed via stdin
+            input_data = json.loads(sys.stdin.read())
+        
+        # Convert headers+rows format to data format if needed
+        if 'headers' in input_data and 'rows' in input_data:
+            headers = input_data['headers']
+            rows = input_data['rows']
+            
+            # Convert to pandas DataFrame format that the script expects
+            data = {}
+            for i, header in enumerate(headers):
+                data[header] = [row[i] if i < len(row) else None for row in rows]
+            
+            input_data['data'] = data
+        
+        trainer = AuthenticMLTrainer()
+        result = trainer.train_model(
+            input_data['data'], 
+            input_data['model_type'], 
+            input_data['target_column']
+        )
+        # Sanitize results to handle NaN values before JSON output
+        sanitized_result = sanitize_for_json(result)
+        print(json.dumps(sanitized_result))
+        
+    except Exception as e:
+        print(json.dumps({
+            "success": False,
+            "error": str(e),
+            "algorithm": input_data.get('model_type', 'unknown'),
+            "target_column": input_data.get('target_column', 'unknown')
+        }))
