@@ -18,7 +18,7 @@ try {
       idleTimeoutMillis: 30000,
       max: 10
     });
-    db = drizzle({ client: pool, schema });
+    db = drizzle(pool, { schema });
     console.log('✅ PostgreSQL database connected successfully');
   } else {
     console.log('⚠️ DATABASE_URL not found - running without database');
