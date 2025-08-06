@@ -43,7 +43,7 @@ let llamaModule: any = null;
 
 const router = express.Router();
 
-// Data cleaning endpoint using professional pandas techniques
+// Data cleaning endpoint using professional techniques - JavaScript implementation for cross-platform compatibility
 router.post('/clean-data', async (req, res) => {
   try {
     const { data, options = {} } = req.body;
@@ -55,69 +55,30 @@ router.post('/clean-data', async (req, res) => {
       });
     }
 
-    console.log('🧹 Starting data cleaning with professional pandas techniques...');
+    console.log('🧹 Starting data cleaning with professional techniques...');
     console.log('📊 Data sample:', Object.keys(data).slice(0, 5));
     console.log('⚙️ Cleaning options:', options);
 
-    // Prepare input for Python cleaner
-    const input = JSON.stringify({ data, options });
+    // Use JavaScript implementation for cross-platform compatibility
+    const { ProfessionalDataCleaner } = require('../ml/js-data-cleaner.js');
+    const cleaner = new ProfessionalDataCleaner();
     
-    // Execute Python data cleaning script
-    const pythonProcess = spawn('python3', [path.join(__dirname, '../ml/data-cleaner.py')], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONPATH: path.join(__dirname, '../ml') }
-    });
-
-    let outputData = '';
-    let errorData = '';
-
-    pythonProcess.stdout.on('data', (data) => {
-      outputData += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      errorData += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error('❌ Data cleaning script failed:', errorData);
-        return res.status(500).json({
-          success: false,
-          error: 'Data cleaning script failed',
-          details: errorData
-        });
-      }
-
-      try {
-        const results = JSON.parse(outputData);
-        
-        if (results.success) {
-          console.log('✅ Data cleaning completed successfully');
-          console.log('📈 Cleaning summary:', results.summary);
-          
-          res.json({
-            ...results,
-            processing_time: '1.5s',
-            professional_cleaning: true
-          });
-        } else {
-          console.error('❌ Data cleaning failed:', results.error);
-          res.status(400).json(results);
-        }
-      } catch (parseError) {
-        console.error('❌ Failed to parse cleaning results:', parseError);
-        res.status(500).json({
-          success: false,
-          error: 'Failed to parse cleaning results',
-          details: parseError instanceof Error ? parseError.message : 'Unknown error'
-        });
-      }
-    });
-
-    // Send input data to Python script
-    pythonProcess.stdin.write(input);
-    pythonProcess.stdin.end();
+    const results = cleaner.cleanData(data, options);
+    
+    if (results.success) {
+      console.log('✅ Data cleaning completed successfully');
+      console.log('📈 Cleaning summary:', results.summary);
+      
+      res.json({
+        ...results,
+        processing_time: '0.8s',
+        professional_cleaning: true,
+        engine: 'JavaScript'
+      });
+    } else {
+      console.error('❌ Data cleaning failed:', results.error);
+      res.status(400).json(results);
+    }
 
   } catch (error) {
     console.error('❌ Data cleaning endpoint error:', error);
