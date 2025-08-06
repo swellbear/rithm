@@ -60,7 +60,7 @@ router.post('/clean-data', async (req, res) => {
     console.log('⚙️ Cleaning options:', options);
 
     // Use JavaScript implementation for cross-platform compatibility
-    const { ProfessionalDataCleaner } = require('../ml/js-data-cleaner.js');
+    const { ProfessionalDataCleaner } = await import('../ml/js-data-cleaner.js');
     const cleaner = new ProfessionalDataCleaner();
     
     const results = cleaner.cleanData(data, options);
