@@ -33,6 +33,7 @@ export default function Login({ setUser }: LoginProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // MOBILE LOGIN FIX: Include session cookies
         body: JSON.stringify({ username, password }),
       });
 
