@@ -70,7 +70,10 @@ router.post('/clean-data', async (req, res) => {
       console.log('📈 Cleaning summary:', results.summary);
       
       res.json({
-        ...results,
+        success: true,
+        cleaned_data: results.data, // Frontend expects 'cleaned_data' 
+        summary: results.summary,
+        statistics: results.statistics,
         processing_time: '0.8s',
         professional_cleaning: true,
         engine: 'JavaScript'
