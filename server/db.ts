@@ -1,12 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
-
-// Production-safe Neon configuration
-neonConfig.webSocketConstructor = ws;
-neonConfig.poolQueryViaFetch = true; // Use HTTP instead of WebSocket for queries
-neonConfig.fetchConnectionCache = true; // Enable connection caching
 
 // Graceful database connection with fallback handling
 let pool: Pool | null = null;
@@ -16,11 +10,11 @@ try {
   if (process.env.DATABASE_URL) {
     pool = new Pool({ 
       connectionString: process.env.DATABASE_URL,
-      // Production-optimized connection settings
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 60000,
-      max: 5, // Reduced for Render's connection limits
-      allowExitOnIdle: true
+      // Production-optimized connection settings for Render PostgreSQL
+      connectionTimeoutMillis: 30000,
+      idleTimeoutMillis: 30000,
+      max: 10,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
     db = drizzle(pool, { schema });
     console.log('✅ PostgreSQL database connected successfully');
