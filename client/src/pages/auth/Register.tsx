@@ -38,6 +38,7 @@ export default function Register({ setUser }: RegisterProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // MOBILE LOGIN FIX: Include session cookies
         body: JSON.stringify({
           username,
           password,
@@ -50,24 +51,36 @@ export default function Register({ setUser }: RegisterProps) {
       });
 
       const data = await response.json();
+      console.log('Registration response:', { status: response.status, data });
       
-      if (response.ok) {
+      if (response.ok && data.user) {
+        // Mobile fix: Store user in localStorage first
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Then set in React state
         setUser(data.user);
+        
         toast({
-          title: "Registration Successful",
-          description: `Welcome to Rithm Associate, ${data.user.username}!`,
+          title: "Account Created Successfully",
+          description: `Welcome ${data.user.username}! Redirecting to platform...`,
         });
+        
+        // Mobile fix: Small delay then redirect
+        setTimeout(() => {
+          window.location.href = '/ml-platform';
+        }, 1000);
       } else {
         toast({
           title: "Registration Failed",
-          description: data.error || "Registration failed",
+          description: data.error || `Server returned ${response.status}`,
           variant: "destructive",
         });
       }
     } catch (error) {
+      console.error('Registration error:', error);
       toast({
-        title: "System Error",
-        description: "Unable to connect to registration service",
+        title: "Registration Failed", 
+        description: error instanceof Error ? error.message : "INTERNAL_ERROR",
         variant: "destructive",
       });
     } finally {
