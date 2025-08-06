@@ -427,6 +427,7 @@ export default function DataManagementPanel({
       const response = await fetch('/api/ml/clean-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // MOBILE LOGIN FIX: Include session cookies
         body: JSON.stringify({ 
           data,
           options: cleaningOptions
