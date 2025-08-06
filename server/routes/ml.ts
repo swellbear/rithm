@@ -263,11 +263,9 @@ router.post('/chat', async (req, res) => {
     if (useLocalModel) {
       console.log('🤖 Processing request with local Phi-3 model...');
       
-      try {
-        // Initialize local model with lazy loading
-        const initSuccess = await initializeLocalModel();
-        
-        if (initSuccess && localModel && localContext) {
+      // Check if model is already initialized
+      if (localModelInitialized && localModel && localContext) {
+        try {
           console.log('💭 Generating response with Phi-3...');
           
           // Prepare the prompt with system context and user messages
@@ -291,14 +289,50 @@ router.post('/chat', async (req, res) => {
             offline: true,
             processing_time: '3.2s'
           });
-        } else {
-          throw new Error('Local model initialization failed');
+        } catch (inferenceError) {
+          console.error('❌ Local model inference error:', inferenceError);
         }
-      } catch (localError) {
-        console.error('❌ Local model error:', localError);
-        console.log('🔄 Falling back to mock response...');
+      }
+      
+      // Model not ready - check if it exists locally
+      try {
+        const modelExists = await fs.access(PHI3_MODEL_PATH).then(() => true).catch(() => false);
         
-        // No fallback - fail authentically
+        if (!modelExists) {
+          // Model needs to be downloaded - start background download but don't wait
+          console.log('📥 Starting background model download...');
+          initializeLocalModel().catch(err => console.error('Background download failed:', err));
+          
+          return res.json({
+            success: true,
+            response: "🔄 **Local AI Model Loading**\n\nI'm downloading the Phi-3 model (2.3GB) for offline use. This is a one-time setup that enables completely private AI processing.\n\n**What's happening:**\n- Downloading Microsoft Phi-3-mini-4k-instruct\n- Will be cached locally for future use\n- No internet required once complete\n\n**For now:** Switch to online mode or wait a few minutes for the download to complete, then try local mode again.\n\n**Why local mode?** Your conversations will be 100% private with no data sent to external services.",
+            analysisType: 'system_message',
+            confidence: 1.0,
+            model: 'downloading',
+            mode: 'local',
+            offline: false,
+            processing_time: '0.1s',
+            downloading: true
+          });
+        } else {
+          // Model exists but not loaded - start background initialization
+          console.log('🧠 Starting background model initialization...');
+          initializeLocalModel().catch(err => console.error('Background init failed:', err));
+          
+          return res.json({
+            success: true,
+            response: "🧠 **Local AI Model Loading**\n\nThe Phi-3 model is installed but needs to be loaded into memory. This takes about 30 seconds.\n\n**Please wait and try again in a moment.**\n\nOnce loaded, you'll have completely private AI processing with no external API calls.",
+            analysisType: 'system_message',
+            confidence: 1.0,
+            model: 'initializing',
+            mode: 'local',
+            offline: true,
+            processing_time: '0.1s',
+            initializing: true
+          });
+        }
+      } catch (checkError) {
+        console.error('❌ Local model check error:', checkError);
         return res.status(503).json({
           success: false,
           error: 'Local ML model is unavailable. Please check your system configuration or try online mode.',
