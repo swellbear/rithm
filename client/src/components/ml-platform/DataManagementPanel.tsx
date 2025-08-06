@@ -447,8 +447,8 @@ export default function DataManagementPanel({
         
         const summary = results.summary;
         toast({
-          title: "Data Cleaned Successfully",
-          description: `✅ Professional cleaning completed: ${summary?.operations_count} operations performed`,
+          title: "Data Cleaned Successfully", 
+          description: `✅ Professional cleaning completed: ${results.statistics?.operations_count || summary?.operations_performed?.length || 0} operations performed`,
           duration: 5000
         });
         
