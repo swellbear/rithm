@@ -2,7 +2,6 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-// Graceful database connection with fallback handling
 let pool: Pool | null = null;
 let db: any = null;
 
@@ -10,7 +9,6 @@ try {
   if (process.env.DATABASE_URL) {
     pool = new Pool({ 
       connectionString: process.env.DATABASE_URL,
-      // Production-optimized connection settings for Render PostgreSQL
       connectionTimeoutMillis: 30000,
       idleTimeoutMillis: 30000,
       max: 10,
