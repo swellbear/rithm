@@ -217,6 +217,7 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // MOBILE LOGIN FIX: Include session cookies
         body: JSON.stringify({
           data: data,
           model_type: 'linear_regression',
