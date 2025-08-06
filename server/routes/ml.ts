@@ -299,7 +299,24 @@ router.post('/chat', async (req, res) => {
         const modelExists = await fs.access(PHI3_MODEL_PATH).then(() => true).catch(() => false);
         
         if (!modelExists) {
-          // Model needs to be downloaded - start background download but don't wait
+          // Check if running on Render (production) - disable local model downloads due to memory constraints
+          const isRenderProduction = process.env.RENDER || process.env.NODE_ENV === 'production';
+          
+          if (isRenderProduction) {
+            return res.json({
+              success: true,
+              response: "⚠️ **Local AI Not Available in Production**\n\nLocal AI models require significant memory (4GB+) and aren't available on this hosted instance due to resource constraints.\n\n**Available Options:**\n- **Online Mode**: Use cloud AI (OpenAI GPT) for full functionality\n- **Download for Local Use**: Get the desktop version for complete offline AI capabilities\n\n**Why this limitation?** The Phi-3 model (2.3GB) plus runtime memory exceeds hosting platform limits. Local installations don't have this restriction.\n\n**Switch to Online Mode for full AI functionality.**",
+              analysisType: 'system_message',
+              confidence: 1.0,
+              model: 'unavailable_production',
+              mode: 'local_disabled',
+              offline: false,
+              processing_time: '0.1s',
+              production_limitation: true
+            });
+          }
+          
+          // Development environment - allow model download
           console.log('📥 Starting background model download...');
           initializeLocalModel().catch(err => console.error('Background download failed:', err));
           
