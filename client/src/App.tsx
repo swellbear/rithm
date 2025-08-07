@@ -14,6 +14,7 @@ import MLPlatform from "@/pages/ml-platform/MLPlatform";
 import DataManagementPanel from '@/components/ml-platform/DataManagementPanel';
 import ChatPanel from '@/components/ml-platform/ChatPanel';
 import ResultsPanel from '@/components/ml-platform/ResultsPanel';
+import UserManual from '@/components/ml-platform/UserManual';
 import MLChatTest from "@/pages/ml-chat/MLChatTest";
 import HealthPage from "@/pages/admin/HealthPage";
 import { useAppStore } from '@/store';
@@ -31,7 +32,8 @@ import {
   BrainCircuit, 
   Settings,
   LogOut,
-  BarChart3
+  BarChart3,
+  BookOpen
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import ReportPreviewDialog from '@/components/ml-platform/ReportPreviewDialog';
@@ -88,6 +90,9 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
   
   // Get training results from store
   const { data, trainingResults } = useAppStore();
+
+  // User manual state
+  const [isUserManualOpen, setIsUserManualOpen] = useState(false);
 
   const handleLogout = () => {
     setUser(null);
@@ -526,9 +531,18 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
           <h1 className="text-lg font-bold">Rithm</h1>
         </div>
         
-        {/* Theme Toggle, Health Monitor, and Logout */}
+        {/* Theme Toggle, User Manual, Health Monitor, and Logout */}
         <div className="flex items-center gap-3">
           <ModeToggle />
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsUserManualOpen(true)}
+            className="text-green-600 dark:text-green-400"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            User Manual
+          </Button>
           <Link href="/health">
             <Button variant="ghost" size="sm" className="text-blue-600 dark:text-blue-400">
               <Settings className="w-4 h-4 mr-2" />
@@ -761,6 +775,12 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
           link.click();
           URL.revokeObjectURL(url);
         }}
+      />
+
+      {/* User Manual */}
+      <UserManual 
+        isOpen={isUserManualOpen} 
+        onClose={() => setIsUserManualOpen(false)} 
       />
     </div>
   );
