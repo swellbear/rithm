@@ -913,10 +913,10 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           </TabsList>
           
           <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
-            {/* Chat Messages - Fixed scrolling */}
-            <div className="flex-1 min-h-0">
-              <ScrollArea className="h-full pr-4">
-              <div className="space-y-6">
+            {/* Chat Messages */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ScrollArea className="h-full">
+                <div className="space-y-6 px-4 py-4">
                 {messages.length === 0 && (
                   <div className="text-center text-gray-500 py-12">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto mb-4">
@@ -1064,20 +1064,20 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                   </div>
                 )}
                 <div ref={messagesEndRef} />
-              </div>
+                </div>
               </ScrollArea>
             </div>
             
             {/* Input Area */}
-            <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50 mt-4">
+            <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50">
               <div className="flex gap-3">
                 <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder={!consent ? "Please enable consent in Data Management panel first..." : "Ask about your data, request analysis, or get ML guidance..."}
+                  placeholder="Ask about your data, request analysis, or get ML guidance..."
                   className="min-h-[100px] resize-none text-base"
-                  disabled={isLoading || !consent}
+                  disabled={false}
                 />
                 <div className="flex flex-col gap-2">
                   <Button
@@ -1096,7 +1096,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                   </Button>
                   <Button
                     onClick={handleSend}
-                    disabled={!input.trim() || isLoading || !consent}
+                    disabled={!input.trim() || isLoading}
                     size="icon"
                     className="h-[50px] w-[50px] flex-shrink-0"
                   >
