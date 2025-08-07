@@ -1385,3 +1385,37 @@ html {
     padding: 20px 16px;
   }
 }
+
+
+/* Chat panel text wrapping and scrolling improvements */
+.chat-panel .prose {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+}
+
+.chat-panel .prose p {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+.chat-panel .prose pre {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+.chat-panel .prose code {
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* ScrollArea improvements for chat messages */
+.chat-panel [data-radix-scroll-area-viewport] {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+.chat-panel [data-radix-scroll-area-root] {
+  height: 100% !important;
+}
