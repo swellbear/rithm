@@ -912,11 +912,11 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
             {/* Chat Messages */}
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="space-y-6 px-4 py-4">
+            <div className="flex-1 overflow-hidden">
+              <ScrollArea className="h-full px-4">
+                <div className="space-y-6 py-4">
                 {messages.length === 0 && (
                   <div className="text-center text-gray-500 py-12">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto mb-4">
@@ -1064,12 +1064,12 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                   </div>
                 )}
                 <div ref={messagesEndRef} />
-                </div>
+              </div>
               </ScrollArea>
             </div>
             
             {/* Input Area */}
-            <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50 mt-4">
               <div className="flex gap-3">
                 <Textarea
                   value={input}
