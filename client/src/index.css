@@ -1419,3 +1419,30 @@ html {
 .chat-panel [data-radix-scroll-area-root] {
   height: 100% !important;
 }
+
+/* Force text wrapping for chat messages - prevent truncation */
+.chat-panel .prose * {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  max-width: 100% !important;
+}
+
+.chat-panel .prose {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Ensure message containers don't constrain width */
+.chat-panel [class*="max-w-"] {
+  max-width: none !important;
+}
+
+/* Prevent any text from being cut off */
+.chat-panel * {
+  text-overflow: visible !important;
+  overflow: visible !important;
+}
