@@ -102,6 +102,11 @@ interface ChatResponse {
   modifiedStructure?: any;
   editType?: string;
   timestamp?: string;
+  datasetRecommendations?: DatasetRecommendation[];
+}
+
+interface LoadingState {
+  search: boolean;
 }
 
 // Simple layout function for workflow nodes
@@ -126,7 +131,8 @@ interface ChatPanelProps {
 }
 
 function ChatPanel({ onToolRun }: ChatPanelProps) {
-  const { setError, setLoading, loading } = useAppStore();
+  const { setError, setLoading } = useAppStore();
+  const [loading, setLocalLoading] = useState<LoadingState>({ search: false });
   const useLocalModel = useAppStore((state) => state.useLocalModel);
   const consent = useAppStore((state) => state.consent);
   const reportStructure = useAppStore((state) => state.reportStructure);
@@ -177,10 +183,10 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
     setIsLoading(true);
     try {
-      const toolType = node.data.tool;
+      const toolType = (node.data as ToolNodeData).tool;
       
       if (toolType === 'web_search') {
-        const query = input.trim() || 'machine learning best practices';
+        const query = input.trim();
         const res = await fetch('/api/web_search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -205,8 +211,8 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            domain: 'general',
-            sampleSize: 100,
+            domain: input.trim() || 'general',
+            sampleSize: 1000,
             useLocalModel,
             consent
           }),
@@ -220,7 +226,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           const resultMessage: ChatMessage = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: `✅ **Data Generated Successfully**\n\n📊 **Dataset:** ${data.data ? Object.keys(data.data).length : 0} columns, ${data.data ? Object.values(data.data)[0]?.length || 0 : 0} rows\n🔢 **Sample Size:** ${data.sampleSize || 100}\n📁 **Domain:** ${data.domain || 'general'}`,
+            content: `**Data Generated Successfully**\n\nDataset: ${data.data ? Object.keys(data.data).length : 0} columns, ${data.data ? Object.values(data.data)[0]?.length || 0 : 0} rows\nSample Size: ${data.sampleSize}\nDomain: ${data.domain}`,
             timestamp: new Date()
           };
           setMessages(prev => [...prev, resultMessage]);
@@ -264,7 +270,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
         }
         
       } else if (toolType === 'analyze_image' || toolType === 'view_image') {
-        // Call vision analysis API with mock image for demo
+        // Call vision analysis API
         const res = await fetch('/api/ml/vision/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -295,7 +301,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
         
       } else if (toolType === 'analyze_text' || toolType === 'nlp_analysis') {
         // Call NLP analysis API
-        const textToAnalyze = input || 'This is a sample text for natural language processing analysis with various entities and sentiments.';
+        const textToAnalyze = input.trim();
         const res = await fetch('/api/ml/nlp/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -358,7 +364,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
     console.log('Node clicked:', toolType);
     
     // Find the node by tool type and execute it
-    const node = nodes.find(n => n.data.tool === toolType);
+    const node = nodes.find(n => (n.data as ToolNodeData).tool === toolType);
     if (node) {
       await handleToolRun(node.id);
     }
@@ -366,7 +372,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
   // Initialize workflow nodes on component mount
   useEffect(() => {
-    const initialNodes: Node<ToolNodeData>[] = [
+    const initialNodes = [
       {
         id: 'web-search',
         type: 'tool',
@@ -906,9 +912,10 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
-            {/* Chat Messages */}
-            <ScrollArea className="flex-1 pr-4 h-full max-h-[calc(100vh-300px)] overflow-y-auto">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
+            {/* Chat Messages - Fixed scrolling */}
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full pr-4">
               <div className="space-y-6">
                 {messages.length === 0 && (
                   <div className="text-center text-gray-500 py-12">
@@ -922,7 +929,7 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                 
                 {messages.map((message) => (
                   <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex gap-3 max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`flex gap-3 max-w-none w-full ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div className="flex-shrink-0 mt-1">
                         {message.role === 'user' ? (
                           <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
@@ -935,11 +942,11 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                         )}
                       </div>
                       
-                      <div className={`rounded-2xl px-4 py-3 ${message.role === 'user' 
+                      <div className={`rounded-2xl px-4 py-3 min-w-0 flex-1 ${message.role === 'user' 
                         ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm' 
                         : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'
                       }`}>
-                        <div className={`prose prose-sm max-w-none ${message.role === 'user' ? 'prose-invert' : 'prose-gray dark:prose-invert'}`}>
+                        <div className={`prose prose-sm max-w-none ${message.role === 'user' ? 'prose-invert' : 'prose-gray dark:prose-invert'}`} style={{overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap'}}>
                           <ReactMarkdown>
                             {message.content}
                           </ReactMarkdown>
@@ -1056,9 +1063,10 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                     </div>
                   </div>
                 )}
+                <div ref={messagesEndRef} />
               </div>
-              <div ref={messagesEndRef} />
-            </ScrollArea>
+              </ScrollArea>
+            </div>
             
             {/* Input Area */}
             <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50 mt-4">
