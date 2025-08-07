@@ -68,6 +68,17 @@ html {
   overflow-y: auto !important;
 }
 
+/* Ensure links are clickable in all markdown content */
+.prose a {
+  color: hsl(var(--primary)) !important;
+  text-decoration: underline !important;
+}
+
+.prose a:hover {
+  color: hsl(var(--primary)) !important;
+  opacity: 0.8 !important;
+}
+
 /* React Flow Controls Styling - Simple and Working */
 .react-flow__controls {
   background: white !important;
