@@ -671,13 +671,13 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
               // Desktop layout with ResizablePanelGroup
               <ResizablePanelGroup 
                 direction="horizontal" 
-                className="ml-platform-main min-h-[calc(100vh-3.5rem)]"
+                className="ml-platform-main h-[calc(100vh-3.5rem)]" // Add h-calc for chain start per Grok
               >
                 <ResizablePanel 
                   defaultSize={30} 
                   minSize={15} 
                   maxSize={40}
-                  className="data-management-panel"
+                  className="data-management-panel flex-1 min-w-0 border-r border-border"
                 >
                   <div className="h-full p-4">
                     <DataManagementPanel 
@@ -717,7 +717,7 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
                   defaultSize={45} 
                   minSize={30} 
                   maxSize={65}
-                  className="ai-chat-panel"
+                  className="ai-chat-panel flex-1 min-w-0 border-r border-border"
                 >
                   <div className="h-full p-4">
                     <ReactFlowProvider>
@@ -732,7 +732,7 @@ function AppContent({ user, setUser }: { user: User | null; setUser: (user: User
                   defaultSize={25} 
                   minSize={20} 
                   maxSize={50}
-                  className="results-panel"
+                  className="results-panel flex-1 min-w-0"
                 >
                   <div className="h-full p-4">
                     <ResultsPanel 
