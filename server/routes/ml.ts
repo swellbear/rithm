@@ -391,24 +391,51 @@ router.post('/chat', async (req, res) => {
           messages: [
             {
               role: 'system',
-              content: ML_CONSULTANT_SYSTEM_PROMPT
+              content: ML_CONSULTANT_SYSTEM_PROMPT + '\n\nIMPORTANT: When mentioning websites or data sources, ALWAYS provide the full URL in markdown format [Website Name](https://actual-url.com). For example: [Bureau of Labor Statistics](https://www.bls.gov) or [World Bank Data](https://data.worldbank.org).'
             },
             ...messages
           ],
-          max_tokens: 500,
+          max_tokens: 2000,  // Increased from 500 to allow full responses
           temperature: 0.7
         });
 
-        const content = completion.choices[0]?.message?.content || 'No response generated';
+        let content = completion.choices[0]?.message?.content || 'No response generated';
+        
+        // Post-process to add URLs to common website mentions if OpenAI didn't include them
+        const websiteMap: Record<string, string> = {
+          'Bureau of Labor Statistics': 'https://www.bls.gov',
+          'BLS': 'https://www.bls.gov',
+          'World Bank': 'https://data.worldbank.org',
+          'Trading Economics': 'https://tradingeconomics.com',
+          'Federal Reserve Economic Data': 'https://fred.stlouisfed.org',
+          'FRED': 'https://fred.stlouisfed.org',
+          'Statista': 'https://www.statista.com',
+          'ResearchGate': 'https://www.researchgate.net',
+          'PubMed': 'https://pubmed.ncbi.nlm.nih.gov',
+          'Google Scholar': 'https://scholar.google.com',
+          'Kaggle': 'https://www.kaggle.com',
+          'GitHub': 'https://github.com',
+          'UCI Machine Learning Repository': 'https://archive.ics.uci.edu/ml',
+          'AWS Open Data': 'https://registry.opendata.aws',
+          'Google Dataset Search': 'https://datasetsearch.research.google.com'
+        };
+        
+        // Replace plain text website mentions with markdown links
+        Object.entries(websiteMap).forEach(([name, url]) => {
+          const regex = new RegExp(`\\b${name}\\b(?!\\()`, 'gi');
+          content = content.replace(regex, `[${name}](${url})`);
+        });
         
         // INTELLIGENT dataset search - extracts research topic and searches web for real datasets
         const datasetRecommendations = [];
         const lowerMessage = message.toLowerCase();
         
-        // Detect if conversation mentions data needs
+        // Detect if conversation mentions data needs OR asks for links/websites
         if (lowerMessage.includes('dataset') || lowerMessage.includes('data') || 
             lowerMessage.includes('find') || lowerMessage.includes('source') ||
-            lowerMessage.includes('download') || lowerMessage.includes('train')) {
+            lowerMessage.includes('download') || lowerMessage.includes('train') ||
+            lowerMessage.includes('website') || lowerMessage.includes('link') ||
+            lowerMessage.includes('url') || lowerMessage.includes('site')) {
           
           try {
             console.log('🔍 Detected data request - extracting research topic...');
@@ -417,8 +444,12 @@ router.post('/chat', async (req, res) => {
             let researchTopic = '';
             
             // Look for key research indicators in the message
-            if (lowerMessage.includes('bio') && lowerMessage.includes('cattle')) {
+            if (lowerMessage.includes('bio') && (lowerMessage.includes('cattle') || lowerMessage.includes('cow'))) {
               researchTopic = 'bioimpedance cattle weight prediction';
+            } else if (lowerMessage.includes('cow') && lowerMessage.includes('bio')) {
+              researchTopic = 'cow bioimpedance animal weight';
+            } else if (lowerMessage.includes('inflation')) {
+              researchTopic = 'inflation economic data CPI';
             } else if (lowerMessage.includes('medical') || lowerMessage.includes('health')) {
               researchTopic = 'medical health';
             } else if (lowerMessage.includes('financial') || lowerMessage.includes('stock')) {
@@ -447,7 +478,7 @@ router.post('/chat', async (req, res) => {
               
               console.log('⚡ Performing web search for:', searchQuery);
               
-              // For now, create intelligent search URLs that will show real results when clicked
+              // Create intelligent search URLs that will show real results when clicked
               datasetRecommendations.push(
                 {
                   name: `Research Datasets: ${researchTopic}`,
@@ -468,6 +499,53 @@ router.post('/chat', async (req, res) => {
                   category: "community"
                 }
               );
+              
+              // Add specific topic-based links
+              if (lowerMessage.includes('inflation')) {
+                datasetRecommendations.push(
+                  {
+                    name: 'Bureau of Labor Statistics - CPI Data',
+                    url: 'https://www.bls.gov/cpi/',
+                    description: 'Official US Consumer Price Index and inflation data from the Bureau of Labor Statistics.',
+                    category: 'official'
+                  },
+                  {
+                    name: 'World Bank Inflation Data',
+                    url: 'https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG',
+                    description: 'Global inflation rates and consumer price index data for all countries.',
+                    category: 'international'
+                  },
+                  {
+                    name: 'FRED Economic Data - Inflation',
+                    url: 'https://fred.stlouisfed.org/categories/9',
+                    description: 'Federal Reserve Economic Data with comprehensive inflation metrics and historical data.',
+                    category: 'federal'
+                  }
+                );
+              }
+              
+              if (lowerMessage.includes('cow') || lowerMessage.includes('bioimpedance')) {
+                datasetRecommendations.push(
+                  {
+                    name: 'Animal Science Database',
+                    url: 'https://www.animalgenome.org/bioinfo/resources/dbase/',
+                    description: 'Comprehensive animal science databases including cattle bioimpedance research.',
+                    category: 'research'
+                  },
+                  {
+                    name: 'Journal of Animal Science',
+                    url: 'https://academic.oup.com/jas/search-results?q=bioimpedance',
+                    description: 'Peer-reviewed research on animal bioimpedance and body composition analysis.',
+                    category: 'academic'
+                  },
+                  {
+                    name: 'USDA Agricultural Research',
+                    url: 'https://www.ars.usda.gov/research/publications/search/?q=cattle%20bioimpedance',
+                    description: 'USDA research publications on cattle bioimpedance and livestock monitoring.',
+                    category: 'government'
+                  }
+                );
+              }
               
               console.log('✅ Generated intelligent search URLs for:', researchTopic);
             }
