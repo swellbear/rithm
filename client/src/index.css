@@ -55,17 +55,180 @@ html {
   background: hsl(var(--border));
 }
 
-/* ML Platform Layout Override - Allow natural expansion */
+/* ML Platform Layout - Even Panel Sizing and Cohesion */
 .ml-platform-container .data-management-panel,
 .ml-platform-container .ai-chat-panel,
 .ml-platform-container .results-panel {
+  flex: 1;
+  min-width: 0;
   overflow-y: auto !important;
   min-height: 100vh !important;
 }
 
-/* Ensure ScrollArea components don't conflict */
+/* Responsive mobile layout */
+@media (max-width: 768px) {
+  .ml-platform-main {
+    flex-direction: column !important;
+  }
+  .data-management-panel,
+  .ai-chat-panel,
+  .results-panel {
+    border-r: none !important;
+    border-b: 1px solid hsl(var(--border)) !important;
+    min-height: auto !important;
+  }
+}
+
+/* Enhanced ScrollArea consistency */
+.ml-platform-container .scroll-area,
 .ml-platform-container [data-radix-scroll-area-viewport] {
   overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted)) !important;
+  scroll-behavior: smooth !important;
+}
+
+.ml-platform-container .scroll-area::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+/* Improved Text Wrapping on Resize */
+.chat-panel .prose {
+  text-wrap: pretty;
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.chat-panel .prose pre,
+.chat-panel .prose code {
+  white-space: pre-wrap !important;
+  overflow-x: auto !important;
+  word-break: break-all !important;
+  hyphens: none !important;
+}
+
+.chat-panel .prose a {
+  word-break: break-all !important;
+  color: hsl(var(--primary)) !important;
+  text-decoration: underline !important;
+}
+
+.chat-panel [role="region"] {
+  min-width: 0 !important;
+}
+
+/* Simple chat layout like Replit - messages scroll, input fixed bottom */
+.chat-panel [data-radix-tabs-content] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure proper text wrapping in resizable chat messages */
+.chat-panel .prose {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100% !important;
+  width: 100%;
+}
+
+.chat-panel .prose p,
+.chat-panel .prose div,
+.chat-panel .prose span,
+.chat-panel .prose li,
+.chat-panel .prose ul,
+.chat-panel .prose ol {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Force chat bubbles to respect panel width */
+.chat-panel .prose * {
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* FORCE BREAK ALL LINKS - NUCLEAR OPTION */
+.chat-panel * {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto !important;
+  max-width: 100% !important;
+}
+
+.chat-panel .prose a,
+.chat-panel a,
+.prose a,
+a {
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  hyphens: auto !important;
+  display: inline !important;
+  width: auto !important;
+}
+
+/* Force chat bubbles to never overflow */
+.chat-panel .rounded-2xl {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* Scrollable container styles */
+.chat-panel [data-scroll-container] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.chat-panel [data-scroll-container]::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-panel [data-scroll-container]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-panel [data-scroll-container]::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+/* Global text wrapping for all panels */
+.ml-platform-container .prose {
+  text-wrap: pretty;
+}
+
+/* Panel cohesion and card styling */
+.ml-platform-container .card-elevated {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius) !important;
+  background: var(--card) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Full viewport fitting */
+html, body, #root {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.ml-platform-container {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.ml-platform-main {
+  height: calc(100vh - 64px) !important;
 }
 
 /* Ensure links are clickable in all markdown content */
@@ -248,6 +411,127 @@ html {
   .text-readable {
     color: var(--text-primary);
     font-weight: 500;
+  }
+
+  /* Chat Panel Complete Fix */
+  .messages-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+  }
+
+  .messages-container::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .messages-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .messages-container::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 4px;
+  }
+
+  /* Enhanced link wrapping in chat messages */
+  .ai-chat-panel .prose a {
+    word-break: break-all !important; /* Force break long URLs */
+    overflow-wrap: break-word !important; /* Alternative for better readability */
+    hyphens: auto !important; /* Allow hyphenation if needed */
+    max-width: 100% !important; /* Constrain to bubble width */
+    display: inline-block !important; /* Helps with wrapping in flex */
+  }
+
+  /* Ensure message bubbles don't overflow */
+  .ai-chat-panel .prose {
+    max-width: 100% !important;
+    word-break: break-word !important; /* General text breaking */
+    overflow-wrap: anywhere !important;
+    text-wrap: pretty; /* Balanced wrapping */
+  }
+
+  /* Code/pre for long content (if URLs are in code) */
+  .ai-chat-panel .prose code,
+  .ai-chat-panel .prose pre {
+    word-break: break-all !important;
+    overflow-x: auto !important; /* Horizontal scroll as fallback for unbreakable content */
+    white-space: pre-wrap !important;
+    max-width: 100% !important;
+  }
+
+  /* Panel cohesion and scrolling safeguards */
+  .ai-chat-panel {
+    overflow: hidden !important; /* Prevent horizontal overflow */
+  }
+  .ai-chat-panel [data-radix-scroll-area-viewport] {
+    overflow-y: auto !important; /* Enforce vertical scroll */
+    max-height: none !important; /* Remove any max-height caps */
+    padding-bottom: 0 !important; /* Minimize bottom space */
+  }
+  .ml-platform-main .resizable-panel {
+    min-width: 0 !important; /* Allow panels to shrink on resize */
+    overflow: hidden !important;
+  }
+
+  /* Widen message bubbles to use more window space */
+  .ai-chat-panel .bg-gray-100, /* User bubble */
+  .ai-chat-panel .bg-gray-800 { /* Dark mode */
+    max-width: 90% !important; /* Increase from any default ~70-85% */
+  }
+
+  /* Force link text/description wrapping in buttons */
+  .ai-chat-panel button[variant="ghost"] {
+    white-space: normal !important; /* Allow wrapping */
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto !important;
+    height: auto !important; /* Expand for multi-line text */
+    padding: 8px 12px !important; /* Adjust padding for better fit */
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  /* Specific for link descriptions (e.g., "Click to open...") */
+  .ai-chat-panel .text-blue-500, /* From screenshot, link text color */
+  .ai-chat-panel .prose a {
+    word-break: break-all !important; /* Break long URLs/descriptions */
+    max-width: 100% !important;
+    display: inline-block !important; /* Keep inline for clickability */
+    pointer-events: auto !important; /* Ensure links are clickable */
+    cursor: pointer !important;
+    text-decoration: underline !important;
+    color: #2563eb !important; /* Blue color for links */
+  }
+  
+  /* Ensure all links in ChatPanel are clickable */
+  .ai-chat-panel a {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    position: relative !important;
+    z-index: 10 !important;
+  }
+  
+  .ai-chat-panel .prose a:hover {
+    color: #1d4ed8 !important; /* Darker blue on hover */
+    text-decoration: underline !important;
+  }
+
+  /* Reduce vertical empty space */
+  .ai-chat-panel .space-y-4 {
+    padding-top: 8px !important; /* Reduce from py-4 */
+    padding-bottom: 8px !important;
+  }
+
+  /* Fix chat panel layout */
+  .chat-input-container {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    padding: 1rem;
+  }
+
+  .dark .chat-input-container {
+    background: #1f2937;
   }
   
   .text-readable-secondary {
@@ -1456,4 +1740,112 @@ html {
 .chat-panel * {
   text-overflow: visible !important;
   overflow: visible !important;
+}
+
+/* Force ChatPanel to use full height */
+.ai-chat-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-panel .card-elevated {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fix CardContent height */
+.ai-chat-panel [class*="card-content"] {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Fix Tabs height */
+.ai-chat-panel [role="tablist"] + div {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fix TabsContent height */
+.ai-chat-panel [role="tabpanel"] {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fix for ChatPanel scrolling and height */
+.ai-chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ai-chat-panel .card-elevated {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-panel .card-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-panel .tabs-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure TabsContent fills available space */
+.ai-chat-panel [role="tabpanel"] {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Critical fix for ScrollArea to fill available space */
+.ai-chat-panel [data-radix-scroll-area-root] {
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ai-chat-panel [data-radix-scroll-area-viewport] {
+  flex: 1 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure scrollbar is always visible */
+.ai-chat-panel [data-radix-scroll-area-scrollbar] {
+  display: flex !important;
+}
+
+/* Ensure clicks register in nested Radix/Markdown */
+.ai-chat-panel button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  z-index: 10 !important; /* Above any overlays */
+}
+
+.ai-chat-panel .prose button,
+.ai-chat-panel .prose a {
+  user-select: none !important; /* Prevent text select blocking clicks */
 }
