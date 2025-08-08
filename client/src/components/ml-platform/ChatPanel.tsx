@@ -142,17 +142,11 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // scrollToBottom is defined later with better implementation
 
   // Listen for the editViaChat custom event from ResultsPanel
   useEffect(() => {
@@ -756,6 +750,9 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
+    
+    // Scroll to bottom after user sends message
+    setTimeout(scrollToBottom, 50);
 
     try {
       const response = await fetch('/api/ml/chat', {
@@ -859,8 +856,29 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
 
   const [useOfflineMode, setUseOfflineMode] = useState(false); // Default to online since API key exists
 
+  // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    const viewport = document.querySelector('.ai-chat-panel [data-radix-scroll-area-viewport]');
+    if (viewport) {
+      // Use the content div's scrollHeight for accurate measurement
+      const contentDiv = viewport.querySelector('.space-y-4');
+      if (contentDiv) {
+        viewport.scrollTop = contentDiv.scrollHeight + 1000; // Add extra to ensure we hit bottom
+        console.log('Auto-scrolled. Content height:', contentDiv.scrollHeight, 'Viewport scrollTop:', viewport.scrollTop);
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Multiple attempts to ensure scroll happens after render
+    scrollToBottom();
+    setTimeout(scrollToBottom, 50);
+    setTimeout(scrollToBottom, 150);
+    setTimeout(scrollToBottom, 300);
+  }, [messages]);
+
   return (
-    <Card className="chat-panel w-full h-full flex flex-col overflow-hidden">
+    <Card className="h-full flex flex-col card-elevated"> {/* Add h-full flex flex-col card-elevated */}
       <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -899,9 +917,9 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="flex-1 min-h-0 p-4 flex flex-col" role="region" aria-label="Chat content">
-        <Tabs defaultValue="chat" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2">
+      <CardContent className="flex-1 p-0 flex flex-col min-h-0 overflow-hidden"> {/* Add flex-col, remove hidden per Grok */}
+        <Tabs defaultValue="chat" className="flex-1 flex flex-col"> {/* flex-1 flex-col per Grok */}
+          <TabsList className="flex-shrink-0 justify-start px-4">
             <TabsTrigger value="chat" className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4" />
               Chat
@@ -912,11 +930,16 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full px-4">
-                <div className="space-y-6 py-4">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
+            <ScrollArea className="flex-1"> {/* Simple flex-1 to fill space */}
+              <div className="space-y-4 pt-4 px-4 pb-40">
+                {/* Debug info */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs text-gray-400 border-b pb-2 mb-4">
+                    Messages: {messages.length} | Total chars: {messages.reduce((acc, m) => acc + m.content.length, 0)}
+                  </div>
+                )}
+                
                 {messages.length === 0 && (
                   <div className="text-center text-gray-500 py-12">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto mb-4">
@@ -928,8 +951,8 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                 )}
                 
                 {messages.map((message) => (
-                  <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex gap-3 max-w-none w-full ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex gap-2 w-full ${message.role === 'user' ? 'flex-row-reverse max-w-[85%]' : 'flex-row max-w-[95%]'}`}>
                       <div className="flex-shrink-0 mt-1">
                         {message.role === 'user' ? (
                           <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
@@ -942,12 +965,82 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                         )}
                       </div>
                       
-                      <div className={`rounded-2xl px-4 py-3 min-w-0 flex-1 ${message.role === 'user' 
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm' 
-                        : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'
-                      }`}>
-                        <div className={`prose prose-sm max-w-none ${message.role === 'user' ? 'prose-invert' : 'prose-gray dark:prose-invert'}`} style={{overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap'}}>
-                          <ReactMarkdown>
+                      <div 
+                        className={`rounded-2xl px-4 py-3 ${message.role === 'user' 
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm' 
+                          : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'
+                        }`}
+                        style={{
+                          width: message.role === 'assistant' ? '100%' : 'fit-content',
+                          maxWidth: message.role === 'assistant' ? '100%' : '75%',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word'
+                        }}
+                      >
+                        <div 
+                          className={`prose prose-sm ${message.role === 'user' ? 'prose-invert' : 'prose-gray dark:prose-invert'}`}
+                          style={{ 
+                            maxWidth: 'none',
+                            width: '100%',
+                            wordBreak: 'normal',
+                            overflowWrap: 'anywhere',
+                            pointerEvents: 'auto'
+                          }}
+                        >
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => (
+                                <p style={{ 
+                                  wordBreak: 'break-word', 
+                                  overflowWrap: 'break-word', 
+                                  margin: '0.5rem 0'
+                                }}>
+                                  {children}
+                                </p>
+                              ),
+                              a: ({ children, href }) => {
+                                // Debugging: Log when link is rendered
+                                console.log('Rendering link with href:', href);
+                                return (
+                                  <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer inline"
+                                    style={{ 
+                                      wordBreak: 'break-all',
+                                      overflowWrap: 'break-word'
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('Link clicked! Opening:', href);
+                                    }}
+                                  >
+                                    {children}
+                                  </a>
+                                );
+                              },
+                              ul: ({ children }) => (
+                                <ul style={{ 
+                                  wordWrap: 'break-word', 
+                                  overflowWrap: 'break-word',
+                                  maxWidth: '100%',
+                                  width: '100%'
+                                }}>
+                                  {children}
+                                </ul>
+                              ),
+                              li: ({ children }) => (
+                                <li style={{ 
+                                  wordWrap: 'break-word', 
+                                  overflowWrap: 'break-word',
+                                  maxWidth: '100%'
+                                }}>
+                                  {children}
+                                </li>
+                              )
+                            }}
+                          >
                             {message.content}
                           </ReactMarkdown>
                         </div>
@@ -973,8 +1066,13 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                                 key={idx}
                                 variant="ghost"
                                 size="sm"
-                                className="h-auto p-2 justify-start"
-                                onClick={() => handleSuggestedAction(action)}
+                                className="h-auto p-2 justify-start text-left w-full whitespace-normal break-words z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('Suggested action clicked:', action);
+                                  handleSuggestedAction(action);
+                                }}
                               >
                                 <Lightbulb className="w-3 h-3 mr-2" />
                                 {action}
@@ -991,8 +1089,13 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                                 key={idx}
                                 variant="ghost"
                                 size="sm"
-                                className="h-auto p-2 justify-start text-left"
-                                onClick={() => handleSuggestedAction(question)}
+                                className="h-auto p-2 justify-start text-left w-full whitespace-normal break-words z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('Follow-up question clicked:', question);
+                                  handleSuggestedAction(question);
+                                }}
                               >
                                 {question}
                               </Button>
@@ -1008,22 +1111,26 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                               Recommended Datasets:
                             </div>
                             {message.datasetRecommendations.map((dataset, idx) => (
-                              <Button
+                              <a
                                 key={idx}
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-2 justify-start text-left w-full border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                onClick={() => window.open(dataset.url, '_blank', 'noopener,noreferrer')}
+                                href={dataset.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block p-2 rounded-md border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Dataset link clicked:', dataset.url);
+                                }}
                               >
                                 <div className="flex items-start gap-2 w-full">
-                                  <Search className="w-3 h-3 mt-0.5 text-blue-500" />
-                                  <div className="text-left flex-1">
+                                  <Search className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
+                                  <div className="text-left flex-1 break-words">
                                     <div className="font-medium text-blue-600 dark:text-blue-400">{dataset.name}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">{dataset.description}</div>
-                                    <div className="text-xs text-blue-500 mt-1">🔗 Click to open in new tab</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 break-words">{dataset.description}</div>
+                                    <div className="text-xs text-blue-500 mt-1 break-words">🔗 Click to open in new tab</div>
                                   </div>
                                 </div>
-                              </Button>
+                              </a>
                             ))}
                           </div>
                         )}
@@ -1063,52 +1170,10 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
                     </div>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
+                {/* Spacer to ensure scroll reaches bottom */}
+                <div ref={messagesEndRef} style={{ height: '20px' }} />
               </div>
-              </ScrollArea>
-            </div>
-            
-            {/* Input Area */}
-            <div className="flex-shrink-0 p-4 border-t bg-gray-50 dark:bg-gray-800/50 mt-4">
-              <div className="flex gap-3">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask about your data, request analysis, or get ML guidance..."
-                  className="min-h-[100px] resize-none text-base"
-                  disabled={false}
-                />
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={handleWebSearch}
-                    disabled={loading.search}
-                    variant="outline"
-                    size="icon"
-                    className="h-[50px] w-[50px] flex-shrink-0"
-                    title="Web Search"
-                  >
-                    {loading.search ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Search className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isLoading}
-                    size="icon"
-                    className="h-[50px] w-[50px] flex-shrink-0"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
+            </ScrollArea>
           </TabsContent>
           
           <TabsContent value="workflow" className="flex-1 flex flex-col mt-4 overflow-hidden">
@@ -1136,6 +1201,40 @@ function ChatPanel({ onToolRun }: ChatPanelProps) {
           </TabsContent>
         </Tabs>
       </CardContent>
+      
+      {/* Input Area - COMPLETELY OUTSIDE Card, always visible */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ position: 'sticky', bottom: 0, zIndex: 50, minHeight: '80px' }}>
+        <div className="flex gap-3 items-end max-w-4xl mx-auto">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about your data, request analysis, or get ML guidance..."
+            className="flex-1 min-h-[44px] max-h-[120px] resize-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
+            }}
+            disabled={isLoading}
+          />
+          <Button
+            onClick={handleSend}
+            disabled={!input.trim() || isLoading}
+            size="sm"
+            className="h-11 px-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0 shadow-sm"
+          >
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="text-xs">Sending</span>
+              </div>
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
